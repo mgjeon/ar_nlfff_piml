@@ -1,5 +1,5 @@
 {
-    "base_path": "/home/usr/workspace/base/uno_pi_cc_hnorm_unit_aug",
+    "base_path": "/home/usr/workspace/base/uno_pi_cc_hnorm_unit",
 
     "model": {
         "model_name": "UNO",
@@ -36,7 +36,7 @@
     },
 
     "data": {
-        "dataset_name": "Hnorm_Unit_Aug",
+        "dataset_name": "Hnorm_Unit",
         "dataset_path": "/mnt/f/isee_dataset",
         "test_noaa": ["11158", "12673"],
         "test_path": "/mnt/f/isee_dataset/11158",
