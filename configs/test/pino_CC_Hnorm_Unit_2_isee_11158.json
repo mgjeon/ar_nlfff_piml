@@ -1,0 +1,8 @@
+{   
+    "meta_path": "/home/usr/workspace/base/pino_CC_Hnorm_Unit_2/train",
+    "result_path": "/home/usr/workspace/base/pino_CC_Hnorm_Unit_2/test/11158",
+
+    "input_path": "/mnt/f/isee_dataset/11158/input/",
+    "label_path": "/mnt/f/isee_dataset/11158/label/",
+    "idx": 41
+}

@@ -1,0 +1,10 @@
+ipykernel
+ipywidgets
+numpy
+scipy
+sunpy
+matplotlib
+pyvista
+lightning
+tensorboard
+torch_tb_profiler
