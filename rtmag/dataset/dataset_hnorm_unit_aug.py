@@ -38,6 +38,10 @@ class ISEEDataset_Hnorm_Unit_Aug(Dataset):
         # NLFFF     [3, 512, 256, 256]  remove duplicated periodic boundary
         labels = labels[:, :-1, :-1, :-1]
 
+        # [3, 513, 257, 257] -> [3, 512, 256, 256]  remove duplicated periodic boundary
+        potential = torch.from_numpy(np.load(label_file, mmap_mode='r')['pot'].astype(np.float32))
+        potential = potential[:, :-1, :-1, :-1]
+
         if is_flip:
             # rotation by 180 deg around z-axis
             inputs = torch.flip(inputs, dims=(1, 2))
@@ -46,9 +50,12 @@ class ISEEDataset_Hnorm_Unit_Aug(Dataset):
             labels = torch.flip(labels, dims=(1, 2))
             labels[0] = -labels[0]
             labels[1] = -labels[1]
+            potential = torch.flip(potential, dims=(1, 2))
+            potential[0] = -potential[0]
+            potential[1] = -potential[1]
 
 
-        samples = {'input': inputs, 'label': labels, 
+        samples = {'input': inputs, 'label': labels, 'pot': potential,
                    'input_name': input_file.stem, 'label_name': label_file.stem,
                    'dx': dx, 'dy': dy, 'dz': dz}
 

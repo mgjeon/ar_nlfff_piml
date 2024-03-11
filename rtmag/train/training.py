@@ -151,6 +151,10 @@ def shared_step(model, sample_batched):
 #---------------------------------------------------------------------------------------
 def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPOINT_PATH, args, writer):
     model = model.to(device)
+    for state in optimizer.state.values():
+        for k, v in state.items():
+            if torch.is_tensor(v):
+                state[k] = v.cuda()
 
     base_path = args.base_path
     n_epochs = args.training['n_epochs']
