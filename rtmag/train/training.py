@@ -20,43 +20,56 @@ if torch.cuda.is_available():
     device = torch.device("cuda")
 
 #---------------------------------------------------------------------------------------
-def criterion(outputs, labels, dx, dy, dz):
+"""
+def criterion_old(outputs, labels, dx, dy, dz):
     loss = {}
-    
-    # data loss ------------------------------------------------------------------------
-    # [b, z, y, x, 3] -> [b, z, ...]
-    opts = torch.flatten(outputs, start_dim=2)
-    lbls = torch.flatten(labels, start_dim=2)
+    # # [b, z, y, x, 3] -> [b, z, ...]
+    # opts = torch.flatten(outputs, start_dim=2)
+    # lbls = torch.flatten(labels, start_dim=2)
 
-    # [b, z, ...] -> [b, ..., z]
-    opts = torch.permute(opts, (0, 2, 1))
-    lbls = torch.permute(lbls, (0, 2, 1))
+    # # [b, z, ...] -> [b, ..., z]
+    # opts = torch.permute(opts, (0, 2, 1))
+    # lbls = torch.permute(lbls, (0, 2, 1))
 
-    # mse loss
-    mse = MeanSquaredError(num_outputs=opts.shape[-1]).to(device)
-    loss_mse = 0.0
-    for i in range(opts.shape[0]):
-        loss_mse += torch.mean(mse(opts[i], lbls[i]))
-    loss_mse /= opts.shape[0]
-    loss['mse'] = loss_mse
+    # # mse loss
+    # mse = MeanSquaredError(num_outputs=opts.shape[-1]).to(device)
+    # loss_mse = 0.0
+    # for i in range(opts.shape[0]):
+    #     loss_mse += torch.mean(mse(opts[i], lbls[i]))
+    # loss_mse /= opts.shape[0]
+    # loss['mse'] = loss_mse
 
-    # ccc loss
-    ccc = ConcordanceCorrCoef(num_outputs=opts.shape[-1]).to(device)
-    loss_ccc = 0.0
-    for i in range(opts.shape[0]):
-        loss_ccc += torch.mean(torch.abs(1.0 - ccc(opts[i], lbls[i])))
-    loss_ccc /= opts.shape[0]
-    loss['ccc'] = loss_ccc
+    # # ccc loss
+    # ccc = ConcordanceCorrCoef(num_outputs=opts.shape[-1]).to(device)
+    # loss_ccc = 0.0
+    # for i in range(opts.shape[0]):
+    #     loss_ccc += torch.mean(torch.abs(1.0 - ccc(opts[i], lbls[i])))
+    # loss_ccc /= opts.shape[0]
+    # loss['ccc'] = loss_ccc
 
-    # physics loss ---------------------------------------------------------------------
     # [b, z, y, x, 3] -> [b, x, y, z, 3]
     b = torch.permute(outputs, (0, 3, 2, 1, 4))
     B = torch.permute(labels, (0, 3, 2, 1, 4))
 
+    mse = MeanSquaredError().to(device)
+    loss_mse = 0.0
+    for i in range(b.shape[0]):
+        loss_mse += mse(b[i].flatten(), B[i].flatten())
+    loss_mse /= b.shape[0]
+    loss['mse'] = loss_mse
+
+    # ccc loss
+    ccc = ConcordanceCorrCoef().to(device)
+    loss_ccc = 0.0
+    for i in range(b.shape[0]):
+        loss_ccc += torch.square(1.0 - ccc(b[i].flatten(), B[i].flatten()))
+    loss_ccc /= b.shape[0]
+    loss['ccc'] = loss_ccc
+
     # boundary condition loss
     loss_bc = 0.0
     # bottom (z=0)
-    loss_bc += torch.mean(torch.square(b[:, :, :, 0, :] - B[:, :, :, 0, :]))
+    loss_bc += 10.0*torch.mean(torch.square(b[:, :, :, 0, :] - B[:, :, :, 0, :]))
     # top    (z=Nz-1)
     loss_bc += torch.mean(torch.square(b[:, :, :, -1, :] - B[:, :, :, -1, :]))
     # left   (y=0)
@@ -72,9 +85,9 @@ def criterion(outputs, labels, dx, dy, dz):
 
     # energy loss
     loss_energy = 0.0
-    for i in range(opts.shape[0]):
+    for i in range(b.shape[0]):
         loss_energy += torch.square(1.0 - eps(b[i], B[i]))
-    loss_energy /= opts.shape[0]
+    loss_energy /= b.shape[0]
     loss['energy'] = loss_energy
 
     # unnormalization
@@ -100,7 +113,67 @@ def criterion(outputs, labels, dx, dy, dz):
     loss['div'] = loss_div
 
     return loss
+"""
 
+def criterion(outputs, labels, dx, dy, dz):
+    loss = {}
+    # [b, z, y, x, 3] -> [b, z, ...]
+    opts = torch.flatten(outputs, start_dim=2)
+    lbls = torch.flatten(labels, start_dim=2)
+
+    # [b, z, ...] -> [b, ..., z]
+    opts = torch.permute(opts, (0, 2, 1))
+    lbls = torch.permute(lbls, (0, 2, 1))
+
+    # mse loss
+    mse = MeanSquaredError(num_outputs=opts.shape[-1]).to(device)
+    loss_mse = 0.0
+    for i in range(opts.shape[0]):
+        loss_mse += torch.mean(mse(opts[i], lbls[i]))
+    loss_mse /= opts.shape[0]
+    loss['mse'] = loss_mse
+
+    # ccc loss
+    ccc = ConcordanceCorrCoef(num_outputs=opts.shape[-1]).to(device)
+    loss_ccc = 0.0
+    for i in range(opts.shape[0]):
+        loss_ccc += torch.mean(torch.abs(1.0 - ccc(opts[i], lbls[i])))
+    loss_ccc /= opts.shape[0]
+    loss['ccc'] = loss_ccc
+    
+    # [b, z, y, x, 3] -> [b, x, y, z, 3]
+    b = torch.permute(outputs, (0, 3, 2, 1, 4))
+    B = torch.permute(labels, (0, 3, 2, 1, 4))
+
+    # unnormalization
+    divisor = (1 / np.arange(1, b.shape[2] + 1)).reshape(1, 1, -1, 1).astype(np.float32)
+    divisor = torch.from_numpy(divisor).to(device)
+    b = b * divisor
+    B = B * divisor
+
+    # boundary condition loss
+    loss_bc = 0.0
+    # bottom (z=0)
+    loss_bc += torch.mean(torch.square(b[:, :, :, 0, :] - B[:, :, :, 0, :]))
+    loss['bc'] = loss_bc
+
+    # force-free loss
+    bx, by, bz = b[..., 0], b[..., 1], b[..., 2]
+    jx, jy, jz = curl(bx, by, bz, dx, dy, dz)
+    b = torch.stack([bx, by, bz], -1)
+    j = torch.stack([jx, jy, jz], -1)
+
+    jxb = torch.cross(j, b, -1)
+    loss_ff = (jxb**2).sum(-1) / ((b**2).sum(-1) + 1e-7)
+    loss_ff = torch.mean(loss_ff)
+    loss['ff'] = loss_ff
+
+    # divergence-less loss
+    div_b = divergence(bx, by, bz, dx, dy, dz)
+    loss_div = torch.mean(torch.square(div_b))
+    loss['div'] = loss_div
+
+    return loss
 
 #---------------------------------------------------------------------------------------
 def get_dataloaders(args):
@@ -167,7 +240,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
         total_train_loss = 0
         total_train_loss_mse = 0
         total_train_loss_ccc = 0
-        total_train_loss_energy = 0
+        # total_train_loss_energy = 0
         total_train_loss_bc = 0
         total_train_loss_ff = 0
         total_train_loss_div = 0
@@ -182,7 +255,6 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
 
                 loss = args.training['w_mse']*loss_dict['mse'] \
                      + args.training['w_ccc']*loss_dict['ccc'] \
-                     + args.training['w_energy']*loss_dict['energy'] \
                      + args.training['w_bc']*loss_dict['bc'] \
                      + args.training['w_ff']*loss_dict['ff'] \
                      + args.training['w_div']*loss_dict['div']
@@ -197,7 +269,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
                 total_train_loss += loss.item()
                 total_train_loss_mse += loss_dict['mse'].item()
                 total_train_loss_ccc += loss_dict['ccc'].item()
-                total_train_loss_energy += loss_dict['energy'].item()
+                # total_train_loss_energy += loss_dict['energy'].item()
                 total_train_loss_bc += loss_dict['bc'].item()
                 total_train_loss_ff += loss_dict['ff'].item()
                 total_train_loss_div += loss_dict['div'].item()
@@ -205,7 +277,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
                 writer.add_scalar('step_train/loss', loss.item(), global_step)
                 writer.add_scalar('step_train/loss_mse', loss_dict['mse'].item(), global_step)
                 writer.add_scalar('step_train/loss_ccc', loss_dict['ccc'].item(), global_step)
-                writer.add_scalar('step_train/loss_energy', loss_dict['energy'].item(), global_step)
+                # writer.add_scalar('step_train/loss_energy', loss_dict['energy'].item(), global_step)
                 writer.add_scalar('step_train/loss_bc', loss_dict['bc'].item(), global_step)
                 writer.add_scalar('step_train/loss_ff', loss_dict['ff'].item(), global_step)
                 writer.add_scalar('step_train/loss_div', loss_dict['div'].item(), global_step)
@@ -225,7 +297,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
         total_train_loss /= len(train_dataloader)
         total_train_loss_mse /= len(train_dataloader)
         total_train_loss_ccc /= len(train_dataloader)
-        total_train_loss_energy /= len(train_dataloader)
+        # total_train_loss_energy /= len(train_dataloader)
         total_train_loss_bc /= len(train_dataloader)
         total_train_loss_ff /= len(train_dataloader)
         total_train_loss_div /= len(train_dataloader)
@@ -233,7 +305,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
         writer.add_scalar('train/loss', total_train_loss, epoch)
         writer.add_scalar('train/loss_mse', total_train_loss_mse, epoch)
         writer.add_scalar('train/loss_ccc', total_train_loss_ccc, epoch)
-        writer.add_scalar('train/loss_energy', total_train_loss_energy, epoch)
+        # writer.add_scalar('train/loss_energy', total_train_loss_energy, epoch)
         writer.add_scalar('train/loss_bc', total_train_loss_bc, epoch)
         writer.add_scalar('train/loss_ff', total_train_loss_ff, epoch)
         writer.add_scalar('train/loss_div', total_train_loss_div, epoch)
@@ -344,7 +416,7 @@ def val(model, test_dataloader, epoch, args, writer):
         total_val_loss = 0.0
         total_val_loss_mse = 0.0
         total_val_loss_ccc = 0.0
-        total_val_loss_energy = 0.0
+        # total_val_loss_energy = 0.0
         total_val_loss_bc = 0.0
         total_val_loss_ff = 0.0
         total_val_loss_div = 0.0
@@ -357,7 +429,6 @@ def val(model, test_dataloader, epoch, args, writer):
 
             val_loss = args.training['w_mse']*val_loss_dict['mse'] \
                      + args.training['w_ccc']*val_loss_dict['ccc'] \
-                     + args.training['w_energy']*val_loss_dict['energy'] \
                      + args.training['w_bc']*val_loss_dict['bc'] \
                      + args.training['w_ff']*val_loss_dict['ff'] \
                      + args.training['w_div']*val_loss_dict['div']
@@ -365,7 +436,7 @@ def val(model, test_dataloader, epoch, args, writer):
             total_val_loss += val_loss.item()
             total_val_loss_mse += val_loss_dict['mse'].item()
             total_val_loss_ccc += val_loss_dict['ccc'].item()
-            total_val_loss_energy += val_loss_dict['energy'].item()
+            # total_val_loss_energy += val_loss_dict['energy'].item()
             total_val_loss_bc += val_loss_dict['bc'].item()
             total_val_loss_ff += val_loss_dict['ff'].item()
             total_val_loss_div += val_loss_dict['div'].item()
@@ -373,7 +444,7 @@ def val(model, test_dataloader, epoch, args, writer):
         total_val_loss /= len(test_dataloader)
         total_val_loss_mse /= len(test_dataloader)
         total_val_loss_ccc /= len(test_dataloader)
-        total_val_loss_energy /= len(test_dataloader)
+        # total_val_loss_energy /= len(test_dataloader)
         total_val_loss_bc /= len(test_dataloader)
         total_val_loss_ff /= len(test_dataloader)
         total_val_loss_div /= len(test_dataloader)
@@ -381,7 +452,7 @@ def val(model, test_dataloader, epoch, args, writer):
         writer.add_scalar('val/loss', total_val_loss, epoch)
         writer.add_scalar('val/loss_mse', total_val_loss_mse, epoch)
         writer.add_scalar('val/loss_ccc', total_val_loss_ccc, epoch)
-        writer.add_scalar('val/loss_energy', total_val_loss_energy, epoch)
+        # writer.add_scalar('val/loss_energy', total_val_loss_energy, epoch)
         writer.add_scalar('val/loss_bc', total_val_loss_bc, epoch)
         writer.add_scalar('val/loss_ff', total_val_loss_ff, epoch)
         writer.add_scalar('val/loss_div', total_val_loss_div, epoch)

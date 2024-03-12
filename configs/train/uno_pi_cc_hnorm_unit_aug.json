@@ -50,8 +50,7 @@
         "n_epochs": 100,
         "save_epoch_every": 10,
         "w_mse": 1.0,
-        "w_ccc": 0.1,
-        "w_energy": 0.1,
+        "w_ccc": 0.01,
         "w_bc": 10.0,
         "w_ff": 1.0,
         "w_div": 1.0
