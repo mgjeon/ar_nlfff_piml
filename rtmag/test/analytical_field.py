@@ -1,3 +1,5 @@
+# https://github.com/RobertJaro/NF2
+
 import numpy as np
 from scipy.integrate import solve_bvp
 

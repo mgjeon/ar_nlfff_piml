@@ -1,3 +1,5 @@
+# https://github.com/RobertJaro/NF2
+
 import numpy as np
 
 from rtmag.test.potential_field import get_potential_field
