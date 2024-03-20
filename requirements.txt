@@ -8,3 +8,4 @@ pyvista
 lightning
 tensorboard
 torch_tb_profiler
+scikit-image

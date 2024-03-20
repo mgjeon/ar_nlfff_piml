@@ -51,6 +51,7 @@
         "save_epoch_every": 10,
         "w_mse": 1.0,
         "w_ccc": 0.01,
+        "ccc_square": true,
         "w_bc": 10.0,
         "w_ff": 1.0,
         "w_div": 1.0

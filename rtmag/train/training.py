@@ -11,6 +11,9 @@ from torchmetrics.regression import ConcordanceCorrCoef, MeanSquaredError
 
 from rtmag.dataset.dataset_hnorm_unit import ISEEDataset_Multiple_Hnorm_Unit, ISEEDataset_Hnorm_Unit
 from rtmag.dataset.dataset_hnorm_unit_aug import ISEEDataset_Multiple_Hnorm_Unit_Aug, ISEEDataset_Hnorm_Unit_Aug
+from rtmag.dataset.dataset_hnorm_square_unit_aug import ISEEDataset_Multiple_Hnorm_Square_Unit_Aug, ISEEDataset_Hnorm_Square_Unit_Aug
+from rtmag.dataset.dataset_hnorm_1_unit_aug import ISEEDataset_Multiple_Hnorm_1_Unit_Aug, ISEEDataset_Hnorm_1_Unit_Aug
+
 from rtmag.train.diff_torch_batch import curl, divergence
 from rtmag.test.eval_plot import plot_sample
 from rtmag.test.eval_tensor import eps
@@ -115,7 +118,7 @@ def criterion_old(outputs, labels, dx, dy, dz):
     return loss
 """
 
-def criterion(outputs, labels, dx, dy, dz):
+def criterion(outputs, labels, dx, dy, dz, args):
     loss = {}
     # [b, z, y, x, 3] -> [b, z, ...]
     opts = torch.flatten(outputs, start_dim=2)
@@ -136,8 +139,12 @@ def criterion(outputs, labels, dx, dy, dz):
     # ccc loss
     ccc = ConcordanceCorrCoef(num_outputs=opts.shape[-1]).to(device)
     loss_ccc = 0.0
-    for i in range(opts.shape[0]):
-        loss_ccc += torch.mean(torch.abs(1.0 - ccc(opts[i], lbls[i])))
+    if args.training.get('ccc_square', False):
+        for i in range(opts.shape[0]):
+            loss_ccc += torch.mean(torch.square(1.0 - ccc(opts[i], lbls[i])))
+    else:
+        for i in range(opts.shape[0]):
+            loss_ccc += torch.mean(torch.abs(1.0 - ccc(opts[i], lbls[i])))
     loss_ccc /= opts.shape[0]
     loss['ccc'] = loss_ccc
     
@@ -146,7 +153,11 @@ def criterion(outputs, labels, dx, dy, dz):
     B = torch.permute(labels, (0, 3, 2, 1, 4))
 
     # unnormalization
-    divisor = (1 / np.arange(1, b.shape[2] + 1)).reshape(1, 1, -1, 1).astype(np.float32)
+    if args.data["dataset_name"] == "Hnorm_Square_Unit_Aug":
+        divisor = (1 / np.arange(1, b.shape[2] + 1)**2 ).reshape(1, 1, -1, 1).astype(np.float32)
+    else:
+        divisor = (1 / np.arange(1, b.shape[2] + 1)).reshape(1, 1, -1, 1).astype(np.float32)
+        
     divisor = torch.from_numpy(divisor).to(device)
     b = b * divisor
     B = B * divisor
@@ -183,6 +194,12 @@ def get_dataloaders(args):
     elif args.data["dataset_name"] == "Hnorm_Unit_Aug":
         train_dataset = ISEEDataset_Multiple_Hnorm_Unit_Aug(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
         test_dataset = ISEEDataset_Hnorm_Unit_Aug(args.data['test_path'], args.data["b_norm"])
+    elif args.data["dataset_name"] == "Hnorm_Square_Unit_Aug":
+        train_dataset = ISEEDataset_Multiple_Hnorm_Square_Unit_Aug(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
+        test_dataset = ISEEDataset_Hnorm_Square_Unit_Aug(args.data['test_path'], args.data["b_norm"])
+    elif args.data["dataset_name"] == "Hnorm_1_Unit_Aug":
+        train_dataset = ISEEDataset_Multiple_Hnorm_1_Unit_Aug(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
+        test_dataset = ISEEDataset_Hnorm_1_Unit_Aug(args.data['test_path'], args.data["b_norm"])
     else:
         raise NotImplementedError
     
@@ -195,7 +212,7 @@ def get_dataloaders(args):
 
 
 #---------------------------------------------------------------------------------------
-def shared_step(model, sample_batched):
+def shared_step(model, sample_batched, args):
     # input --------------------------------------------------------------
     # [b, 3, x, y, 1]
     inputs = sample_batched['input'].to(device)
@@ -216,7 +233,8 @@ def shared_step(model, sample_batched):
     dx = sample_batched['dx'].flatten().to(device)
     dy = sample_batched['dy'].flatten().to(device)
     dz = sample_batched['dz'].flatten().to(device)
-    loss = criterion(outputs, labels, dx, dy, dz)
+
+    loss = criterion(outputs, labels, dx, dy, dz, args)
 
     return loss
 
@@ -235,6 +253,12 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
     global_step_tmp = len(train_dataloader) * ck_epoch
     validation_loss = np.inf
     for epoch in range(ck_epoch, n_epochs+1):
+
+        if epoch == 0:
+            with torch.no_grad():
+                model = model.eval()
+                val_plot(model, test_dataloader, -1, args, writer)
+
         # Training
         model = model.train()
         total_train_loss = 0
@@ -251,7 +275,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
 
                 tqdm_loader_train.set_description(f"epoch {epoch}")
 
-                loss_dict = shared_step(model, sample_batched)
+                loss_dict = shared_step(model, sample_batched, args)
 
                 loss = args.training['w_mse']*loss_dict['mse'] \
                      + args.training['w_ccc']*loss_dict['ccc'] \
@@ -365,9 +389,14 @@ def eval_plots(b_pred, b_true, b_pot, func, name):
 #---------------------------------------------------------------------------------------
 def val_plot(model, test_dataloader, epoch, args, writer):
     with torch.no_grad():
-        b_norm = args.data["b_norm"]
-
         batch = next(iter(test_dataloader))
+
+        if args.data["b_norm"]:
+            b_norm = args.data["b_norm"]
+        else:
+            b_norm = batch['b_norm'].detach().cpu().numpy()
+            b_norm = b_norm[0]
+
         # [b, 3, x, y, 1]
         inputs = batch['input'].to(device)
         # [b, 3, x, y, 1] -> [b, 1, y, x, 3]
@@ -383,7 +412,11 @@ def val_plot(model, test_dataloader, epoch, args, writer):
         b_true = batch['label'].detach().cpu().numpy()
         b_true = b_true[0, ...].transpose(1, 2, 3, 0)
 
-        divi = (b_norm / np.arange(1, b_pred.shape[2] + 1)).reshape(1, 1, -1, 1).astype(np.float32)
+        if args.data["dataset_name"] == "Hnorm_Square_Unit_Aug":
+            divi = (b_norm / np.arange(1, b_pred.shape[2] + 1)**2 ).reshape(1, 1, -1, 1).astype(np.float32)
+        else:
+            divi = (b_norm / np.arange(1, b_pred.shape[2] + 1)).reshape(1, 1, -1, 1).astype(np.float32)
+    
         b_pred = b_pred * divi
         b_true = b_true * divi
 
@@ -425,7 +458,7 @@ def val(model, test_dataloader, epoch, args, writer):
             gc.collect()
             torch.cuda.empty_cache()
             
-            val_loss_dict = shared_step(model, sample_batched)
+            val_loss_dict = shared_step(model, sample_batched, args)
 
             val_loss = args.training['w_mse']*val_loss_dict['mse'] \
                      + args.training['w_ccc']*val_loss_dict['ccc'] \
