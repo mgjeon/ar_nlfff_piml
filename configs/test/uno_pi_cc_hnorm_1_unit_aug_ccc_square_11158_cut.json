@@ -1,0 +1,21 @@
+{   
+    "meta_path": "/home/usr/workspace/base/uno_pi_cc_hnorm_1_unit_aug_ccc_square",
+    "result_path": "/home/usr/workspace/base/uno_pi_cc_hnorm_1_unit_aug_ccc_square/test/11158_cut",
+
+    "input_path": "/mnt/f/isee_dataset/11158/input/",
+    "label_path": "/mnt/f/isee_dataset/11158/label/",
+    "idx": null,
+    "self_eval": false,
+    "overwrite": true,
+
+    "metrics": {
+        "z_max": 20,
+        "title": "NOAA 11158",
+        "energy_ylim": [0.1, 1.3],
+        "free_energy_ylim": [-0.2, 0.3],
+        "metrics_ylim": [0.4, 1.0],
+        "error_ylim": [0.0, 1.0],
+        "eps_ylim": [0.0, 1.2],
+        "hour": 3
+    }
+}

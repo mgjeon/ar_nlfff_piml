@@ -1,0 +1,13 @@
+{   
+    "result_path": "/home/usr/workspace/paper/val/pot/12673_isee/result",
+
+    "metrics": {
+        "title": "NOAA 12673",
+        "energy_ylim": [0.1, 1.3],
+        "free_energy_ylim": [-0.2, 0.3],
+        "metrics_ylim": [0.4, 1.0],
+        "error_ylim": [0.0, 1.0],
+        "eps_ylim": [0.0, 1.2],
+        "hour": 3
+    }
+}

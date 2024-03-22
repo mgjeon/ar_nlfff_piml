@@ -1,8 +1,10 @@
 {   
-    "meta_path": "/home/usr/workspace/base/pino_CC_Hnorm_Unit_2/train",
+    "meta_path": "/home/usr/workspace/base/pino_CC_Hnorm_Unit_2",
     "result_path": "/home/usr/workspace/base/pino_CC_Hnorm_Unit_2/test/11158",
 
     "input_path": "/mnt/f/isee_dataset/11158/input/",
     "label_path": "/mnt/f/isee_dataset/11158/label/",
-    "idx": 41
+    "idx": 41,
+    "self_eval": false,
+    "overwrite": true
 }
