@@ -8,8 +8,9 @@
     "self_eval": false,
     "overwrite": true,
 
+    "cut": [128,-128, 64,-64, 0,128],
+
     "metrics": {
-        "z_max": 20,
         "title": "NOAA 11158",
         "energy_ylim": [0.1, 1.3],
         "free_energy_ylim": [-0.2, 0.3],
