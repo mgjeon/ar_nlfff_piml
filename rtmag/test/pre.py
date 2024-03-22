@@ -11,7 +11,6 @@ from rtmag.test.eval import C_vec, C_cs, En_prime, Em_prime, eps, l2_error, ener
 from rtmag.test.eval_single import self_eval
 
 
-
 def parse_tai_string(tstr):
     year   = int(tstr[:4])
     month  = int(tstr[4:6])
@@ -154,7 +153,35 @@ def evaluate_bp(b, B, Bp, dV, self_eval=False):
 
 #     return result
 
-def plot_loss(save_path, b, B, title, height=257, show=False):
+def eval_plots(b_pred, b_true, b_pot, func, name, savepath):
+    heights = np.arange(b_pred.shape[2])
+
+    plots_b = []
+    for i in range(b_pred.shape[-2]):
+        plots_b.append(func(b_pred[:, :, i, :], b_true[:, :, i, :]))
+
+    plots_B_pot = []
+    for i in range(b_pot.shape[-2]):
+        plots_B_pot.append(func(b_pot[:, :, i, :], b_true[:, :, i, :]))
+
+    fig = plt.figure(figsize=(6, 8))
+    plt.plot(plots_b, heights, color='red', label='PINO')
+    plt.plot(plots_B_pot, heights, color='black', label='Potential')
+    plt.legend()
+    plt.xlabel(name)
+    plt.ylabel('height [pixel]')
+    plt.xscale('log')
+    plt.yscale('linear')
+    plt.grid()
+    plt.tight_layout()
+    fig.savefig(savepath, dpi=300)
+    return fig
+
+def plot_loss_2(b_pred, b_true, b_pot, savepath_1, savepath_2):
+    eval_plots(b_pred, b_true, b_pot, l2_error, "rel_l2_err", savepath_1)
+    eval_plots(b_pred, b_true, b_pot, eps, "eps", savepath_2)
+
+def plot_loss(save_path, b, B, Bp, title, height=257, show=False):
     def inspect_val(pred, target):
 
         pd = pred - pred.mean()
@@ -199,11 +226,15 @@ def plot_loss(save_path, b, B, title, height=257, show=False):
         fig.savefig(save_path, dpi=300)
         plt.close("all")
 
-def plot_lines(b, B, b_title, B_title, sv_path, vmin=-2500, vmax=2500, i_siz=160, j_siz=100, i_res=16, j_res=16, show=False, window_size=(1200, 800), zoom=2.0, max_time=180):
+def plot_lines(b, B, b_title, B_title, sv_path, vmin=-2500, vmax=2500, i_siz=160, j_siz=100, i_res=16, j_res=16, show=False, window_size=(1200, 800), zoom=2.0, max_time=100000):
 
     bx = b[..., 0]
     by = b[..., 1]
     bz = b[..., 2]
+
+    i_siz = bx.shape[0] / 2
+    j_siz = bx.shape[1] / 2
+ 
     mesh = create_mesh(bx, by, bz)
     b_plot = mag_plotter(mesh)
     b_tube, b_bottom, b_dargs = b_plot.create_mesh(i_siz=i_siz, j_siz=j_siz, i_resolution=i_res, j_resolution=j_res, vmin=vmin, vmax=vmax, max_time=max_time)

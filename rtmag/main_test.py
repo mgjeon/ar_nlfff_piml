@@ -18,7 +18,7 @@ pv.set_jupyter_backend('static')
 from neuralop.models import UNO
 
 from rtmag.test.field_plot import create_mesh, mag_plotter
-from rtmag.test.pre import parse_tai_string, plot_sample, plot_lines, plot_loss, evaluate_bp
+from rtmag.test.pre import parse_tai_string, plot_sample, plot_lines, plot_loss, evaluate_bp, plot_loss_2
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -54,7 +54,10 @@ info = np.load(meta_path / 'args.npy', allow_pickle=True).item()
 for key, value in info.items():
         args.__dict__[key] = value
 
+isNone = False
 b_norm = args.data["b_norm"]
+if b_norm is None:
+    isNone = True
 
 model = UNO(
         hidden_channels = args.model["hidden_channels"],
@@ -105,10 +108,14 @@ for i in range(idx, len(input_path)):
         #----------------------------------------------------------------------------------
         input_file  = input_path[i]
         inputs = np.load(input_file)
-
-        model_input = torch.from_numpy(inputs['input'])[None, ...] / b_norm
-        # [batch_size, 3, 513, 257, 1]
+        model_input = torch.from_numpy(inputs['input'])[None, ...] 
         model_input = model_input[:, :, :-1, :-1, :]  # remove duplicated periodic boundary
+        
+        if isNone:
+            b_norm = torch.max(torch.abs(model_input)).item()
+
+        model_input /= b_norm
+        # [batch_size, 3, 513, 257, 1]
         model_input = model_input.to(device)
         model_input = torch.permute(model_input, (0, 4, 3, 2, 1))
 
@@ -131,6 +138,11 @@ for i in range(idx, len(input_path)):
         B = B[:-1, :-1, :-1, :]
         Bp = Bp[:-1, :-1, :-1, :]
 
+        if configs.metrics.get("z_max", False):
+            b = b[:, :, :configs.metrics["z_max"], :]
+            B = B[:, :, :configs.metrics["z_max"], :]
+            Bp = Bp[:, :, :configs.metrics["z_max"], :]
+
         # dV
         dx, dy, dz = inputs['dx'], inputs['dy'], inputs['dz']  # Mm
         dx, dy, dz = dx * 1e8, dy * 1e8, dz * 1e8  # cm
@@ -142,8 +154,9 @@ for i in range(idx, len(input_path)):
         res = {}
         res['obstime'] = obstime
         res.update(evaluate_bp(b, B, Bp, dV))
-        print(f"{obstime}|C_vec:{res['C_vec']:.2f}|C_cs:{res['C_cs']:.2f}|E_n':{res['E_n_prime']:.2f}|E_m':{res['E_m_prime']:.2f}|eps:{res['eps']:.2f}")
+        print(f"{obstime}|b_norm{b_norm:.0f}|C_vec:{res['C_vec']:.2f}|C_cs:{res['C_cs']:.2f}|E_n':{res['E_n_prime']:.2f}|E_m':{res['E_m_prime']:.2f}|eps:{res['eps']:.2f}")
         results.append(res)
+        res["b_norm"] = b_norm
         df = pd.DataFrame.from_dict(results)
         csv_path = result_path / 'real_time.csv'
         df.to_csv(csv_path, index=False)
@@ -159,8 +172,9 @@ for i in range(idx, len(input_path)):
         loss_path.mkdir(parents=True, exist_ok=True)
 
         plot_sample(plot_path / f"{tstr}.png", b, B, f"PINO vs ISEE {tstr}")
-        plot_lines(b, B, f'PINO {tstr}', f'ISEE {tstr}', line_path / f"{tstr}.png", max_time=10000)
-        plot_loss(loss_path / f"{tstr}.png", b, B, f"PINO vs ISEE {tstr}", height=b.shape[2])
+        plot_lines(b, B, f'PINO {tstr}', f'ISEE {tstr}', line_path / f"{tstr}.png")
+        # plot_loss(loss_path / f"{tstr}.png", b, B, Bp, f"PINO vs ISEE {tstr}", height=b.shape[2])
+        plot_loss_2(b, B, Bp, loss_path / f"{tstr}_rel_l2_err.png", loss_path / f"{tstr}_eps.png")
         
         with open(res_path, 'wb') as f:
             pickle.dump(results, f)
