@@ -119,6 +119,7 @@ def criterion_old(outputs, labels, dx, dy, dz):
 """
 
 def criterion(outputs, labels, dx, dy, dz, args):
+
     loss = {}
     # [b, z, y, x, 3] -> [b, z, ...]
     opts = torch.flatten(outputs, start_dim=2)
@@ -152,6 +153,9 @@ def criterion(outputs, labels, dx, dy, dz, args):
     b = torch.permute(outputs, (0, 3, 2, 1, 4))
     B = torch.permute(labels, (0, 3, 2, 1, 4))
 
+    # [b, 3, x, y, z] -> [b, x, y, z, 3]
+    # Bp = torch.permute(potential, (0, 2, 3, 4, 1))
+
     # unnormalization
     if args.data["dataset_name"] == "Hnorm_Square_Unit_Aug":
         divisor = (1 / np.arange(1, b.shape[2] + 1)**2 ).reshape(1, 1, -1, 1).astype(np.float32)
@@ -161,7 +165,20 @@ def criterion(outputs, labels, dx, dy, dz, args):
     divisor = torch.from_numpy(divisor).to(device)
     b = b * divisor
     B = B * divisor
+    Bp = Bp * divisor
 
+    # [b]
+    pred_energy = torch.sum(torch.sum(b**2, dim=-1), dim=(1, 2, 3))
+    label_energy = torch.sum(torch.sum(B**2, dim=-1), dim=(1, 2, 3))
+    # potential_energy = torch.sum(torch.sum(Bp**2, dim=-1), dim=(1, 2, 3))
+
+    # energy loss
+    loss_eps = torch.mean(torch.square(1.0 - pred_energy / label_energy))
+    loss['energy'] = loss_eps
+
+    # loss_free_eps = torch.mean(torch.square((pred_energy/potential_energy) - (label_energy/potential_energy)))
+    # loss['free_energy'] = loss_free_eps
+    
     # boundary condition loss
     loss_bc = 0.0
     # bottom (z=0)
@@ -226,6 +243,7 @@ def shared_step(model, sample_batched, args):
     # label --------------------------------------------------------------
     # [b, 3, x, y, z]
     labels = sample_batched['label'].to(device)
+
     # [b, 3, x, y, z] -> [b, z, y, x, 3]
     labels = torch.permute(labels, (0, 4, 3, 2, 1))
 
@@ -233,6 +251,8 @@ def shared_step(model, sample_batched, args):
     dx = sample_batched['dx'].flatten().to(device)
     dy = sample_batched['dy'].flatten().to(device)
     dz = sample_batched['dz'].flatten().to(device)
+
+    # [b, 3, x, y, z]
 
     loss = criterion(outputs, labels, dx, dy, dz, args)
 
@@ -264,10 +284,12 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
         total_train_loss = 0
         total_train_loss_mse = 0
         total_train_loss_ccc = 0
-        # total_train_loss_energy = 0
+        total_train_loss_energy = 0
+        # total_train_loss_free_energy = 0
         total_train_loss_bc = 0
         total_train_loss_ff = 0
         total_train_loss_div = 0
+
         with tqdm(train_dataloader, desc='Training', ncols=140) as tqdm_loader_train:
             for i_batch, sample_batched in enumerate(tqdm_loader_train):
                 gc.collect()
@@ -276,12 +298,12 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
                 tqdm_loader_train.set_description(f"epoch {epoch}")
 
                 loss_dict = shared_step(model, sample_batched, args)
-
                 loss = args.training['w_mse']*loss_dict['mse'] \
                      + args.training['w_ccc']*loss_dict['ccc'] \
                      + args.training['w_bc']*loss_dict['bc'] \
                      + args.training['w_ff']*loss_dict['ff'] \
-                     + args.training['w_div']*loss_dict['div']
+                     + args.training['w_div']*loss_dict['div'] \
+                     + args.training.get('w_energy', 0)*loss_dict['energy']
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -293,7 +315,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
                 total_train_loss += loss.item()
                 total_train_loss_mse += loss_dict['mse'].item()
                 total_train_loss_ccc += loss_dict['ccc'].item()
-                # total_train_loss_energy += loss_dict['energy'].item()
+                total_train_loss_energy += loss_dict['energy'].item()
+                # total_train_loss_free_energy += loss_dict['free_energy'].item()
                 total_train_loss_bc += loss_dict['bc'].item()
                 total_train_loss_ff += loss_dict['ff'].item()
                 total_train_loss_div += loss_dict['div'].item()
@@ -301,7 +324,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
                 writer.add_scalar('step_train/loss', loss.item(), global_step)
                 writer.add_scalar('step_train/loss_mse', loss_dict['mse'].item(), global_step)
                 writer.add_scalar('step_train/loss_ccc', loss_dict['ccc'].item(), global_step)
-                # writer.add_scalar('step_train/loss_energy', loss_dict['energy'].item(), global_step)
+                writer.add_scalar('step_train/loss_energy', loss_dict['energy'].item(), global_step)
+                # writer.add_scalar('step_train/loss_free_energy', loss_dict['free_energy'].item(), global_step)
                 writer.add_scalar('step_train/loss_bc', loss_dict['bc'].item(), global_step)
                 writer.add_scalar('step_train/loss_ff', loss_dict['ff'].item(), global_step)
                 writer.add_scalar('step_train/loss_div', loss_dict['div'].item(), global_step)
@@ -321,7 +345,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
         total_train_loss /= len(train_dataloader)
         total_train_loss_mse /= len(train_dataloader)
         total_train_loss_ccc /= len(train_dataloader)
-        # total_train_loss_energy /= len(train_dataloader)
+        total_train_loss_energy /= len(train_dataloader)
+        # total_train_loss_free_energy /= len(train_dataloader)
         total_train_loss_bc /= len(train_dataloader)
         total_train_loss_ff /= len(train_dataloader)
         total_train_loss_div /= len(train_dataloader)
@@ -329,7 +354,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
         writer.add_scalar('train/loss', total_train_loss, epoch)
         writer.add_scalar('train/loss_mse', total_train_loss_mse, epoch)
         writer.add_scalar('train/loss_ccc', total_train_loss_ccc, epoch)
-        # writer.add_scalar('train/loss_energy', total_train_loss_energy, epoch)
+        writer.add_scalar('train/loss_energy', total_train_loss_energy, epoch)
+        # writer.add_scalar('train/loss_free_energy', total_train_loss_free_energy, epoch)
         writer.add_scalar('train/loss_bc', total_train_loss_bc, epoch)
         writer.add_scalar('train/loss_ff', total_train_loss_ff, epoch)
         writer.add_scalar('train/loss_div', total_train_loss_div, epoch)
@@ -449,7 +475,8 @@ def val(model, test_dataloader, epoch, args, writer):
         total_val_loss = 0.0
         total_val_loss_mse = 0.0
         total_val_loss_ccc = 0.0
-        # total_val_loss_energy = 0.0
+        total_val_loss_energy = 0.0
+        # total_val_loss_free_energy = 0.0
         total_val_loss_bc = 0.0
         total_val_loss_ff = 0.0
         total_val_loss_div = 0.0
@@ -464,12 +491,14 @@ def val(model, test_dataloader, epoch, args, writer):
                      + args.training['w_ccc']*val_loss_dict['ccc'] \
                      + args.training['w_bc']*val_loss_dict['bc'] \
                      + args.training['w_ff']*val_loss_dict['ff'] \
-                     + args.training['w_div']*val_loss_dict['div']
-            
+                     + args.training['w_div']*val_loss_dict['div'] \
+                     + args.training.get('w_energy', 0)*val_loss_dict['energy']
+
             total_val_loss += val_loss.item()
             total_val_loss_mse += val_loss_dict['mse'].item()
             total_val_loss_ccc += val_loss_dict['ccc'].item()
-            # total_val_loss_energy += val_loss_dict['energy'].item()
+            total_val_loss_energy += val_loss_dict['energy'].item()
+            # total_val_loss_free_energy += val_loss_dict['free_energy'].item()
             total_val_loss_bc += val_loss_dict['bc'].item()
             total_val_loss_ff += val_loss_dict['ff'].item()
             total_val_loss_div += val_loss_dict['div'].item()
@@ -477,7 +506,8 @@ def val(model, test_dataloader, epoch, args, writer):
         total_val_loss /= len(test_dataloader)
         total_val_loss_mse /= len(test_dataloader)
         total_val_loss_ccc /= len(test_dataloader)
-        # total_val_loss_energy /= len(test_dataloader)
+        total_val_loss_energy /= len(test_dataloader)
+        # total_val_loss_free_energy /= len(test_dataloader)
         total_val_loss_bc /= len(test_dataloader)
         total_val_loss_ff /= len(test_dataloader)
         total_val_loss_div /= len(test_dataloader)
@@ -485,7 +515,8 @@ def val(model, test_dataloader, epoch, args, writer):
         writer.add_scalar('val/loss', total_val_loss, epoch)
         writer.add_scalar('val/loss_mse', total_val_loss_mse, epoch)
         writer.add_scalar('val/loss_ccc', total_val_loss_ccc, epoch)
-        # writer.add_scalar('val/loss_energy', total_val_loss_energy, epoch)
+        writer.add_scalar('val/loss_energy', total_val_loss_energy, epoch)
+        # writer.add_scalar('val/loss_free_energy', total_val_loss_free_energy, epoch)
         writer.add_scalar('val/loss_bc', total_val_loss_bc, epoch)
         writer.add_scalar('val/loss_ff', total_val_loss_ff, epoch)
         writer.add_scalar('val/loss_div', total_val_loss_div, epoch)

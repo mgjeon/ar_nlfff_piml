@@ -22,6 +22,7 @@ from rtmag.test.pre import parse_tai_string, plot_sample, plot_lines, plot_loss,
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+from rtmag.test.analytical_field import get_analytic_b_field
 
 #-----------------------------------------------------------------------------------------
 parser = argparse.ArgumentParser()
@@ -37,12 +38,6 @@ result_path = Path(configs.result_path)
 if configs.overwrite:
     shutil.rmtree(str(result_path), ignore_errors=True)
 result_path.mkdir(exist_ok=True, parents=True)
-
-input_path = Path(configs.input_path).glob('*.npz')
-input_path = sorted(input_path)
-
-label_path = Path(configs.label_path).glob('*.npz')
-label_path = sorted(label_path)
 
 
 #-----------------------------------------------------------------------------------------

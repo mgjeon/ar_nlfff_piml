@@ -1,6 +1,6 @@
 {   
-    "meta_path": "/home/usr/workspace/base/uno_pi_cc_hnorm_1_unit_aug_ccc_square",
-    "result_path": "/home/usr/workspace/base/uno_pi_cc_hnorm_1_unit_aug_ccc_square/test/12673",
+    "meta_path": "/home/usr/workspace/base/uno_pi_cc_hnorm_unit_aug",
+    "result_path": "/home/usr/workspace/base/uno_pi_cc_hnorm_unit_aug/test/12673",
 
     "input_path": "/mnt/f/isee_dataset/12673/input/",
     "label_path": "/mnt/f/isee_dataset/12673/label/",

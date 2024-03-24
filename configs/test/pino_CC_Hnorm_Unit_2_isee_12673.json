@@ -4,7 +4,17 @@
 
     "input_path": "/mnt/f/isee_dataset/12673/input/",
     "label_path": "/mnt/f/isee_dataset/12673/label/",
-    "idx": 239,
+    "idx": null,
     "self_eval": false,
-    "overwrite": true
+    "overwrite": true,
+
+    "metrics": {
+        "title": "NOAA 12673",
+        "energy_ylim": [0.8, 3.5],
+        "free_energy_ylim": [0.1, 1.0],
+        "metrics_ylim": [-2.0, 1.0],
+        "error_ylim": [0.0, 1.0],
+        "eps_ylim": [0.0, 1.2],
+        "hour": 3
+    }
 }
