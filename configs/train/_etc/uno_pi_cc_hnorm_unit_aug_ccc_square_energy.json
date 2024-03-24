@@ -1,5 +1,5 @@
 {
-    "base_path": "/home/usr/workspace/base/uno_pi_cc_hnorm_unit_aug",
+    "base_path": "/home/usr/workspace/base/uno_pi_cc_hnorm_1_unit_aug_ccc_square_energy",
 
     "model": {
         "model_name": "UNO",
@@ -36,11 +36,11 @@
     },
 
     "data": {
-        "dataset_name": "Hnorm_Unit_Aug",
+        "dataset_name": "Hnorm_1_Unit_Aug",
         "dataset_path": "/mnt/f/isee_dataset",
         "test_noaa": ["11158", "12673"],
         "test_path": "/mnt/f/isee_dataset/11158",
-        "b_norm": 2500,
+        "b_norm": null,
         "batch_size": 1,
         "num_workers": 4
     },
@@ -51,6 +51,9 @@
         "save_epoch_every": 10,
         "w_mse": 1.0,
         "w_ccc": 0.01,
+        "ccc_square": true,
+        "w_energy": 1.0,
+        "w_free_energy": 1.0,
         "w_bc": 10.0,
         "w_ff": 1.0,
         "w_div": 1.0
