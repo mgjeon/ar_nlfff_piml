@@ -165,7 +165,7 @@ def criterion(outputs, labels, dx, dy, dz, args):
     divisor = torch.from_numpy(divisor).to(device)
     b = b * divisor
     B = B * divisor
-    Bp = Bp * divisor
+    # Bp = Bp * divisor
 
     # [b]
     pred_energy = torch.sum(torch.sum(b**2, dim=-1), dim=(1, 2, 3))
