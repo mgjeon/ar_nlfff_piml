@@ -185,7 +185,28 @@ for i in range(idx, len(input_path)):
         with open(idx_path, 'wb') as f:
             pickle.dump(i+1, f)
 
-        del b, B, dV, dx, dy, dz, inputs, model_input, model_output, res
+        del input_file
+        del inputs
+        del model_input
+        del model_output
+        del b
+        del divi
+        del label_file
+        del B
+        del Bp
+        del dx
+        del dy
+        del dz
+        del dV
+        del tstr 
+        del obstime
+        del res
+        del results
+        del df
+        del csv_path
+        del plot_path
+        del line_path
+        del loss_path
 
         torch.cuda.empty_cache()
         gc.collect()
