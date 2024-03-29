@@ -13,6 +13,7 @@ from rtmag.dataset.dataset_hnorm_unit import ISEEDataset_Multiple_Hnorm_Unit, IS
 from rtmag.dataset.dataset_hnorm_unit_aug import ISEEDataset_Multiple_Hnorm_Unit_Aug, ISEEDataset_Hnorm_Unit_Aug
 from rtmag.dataset.dataset_hnorm_square_unit_aug import ISEEDataset_Multiple_Hnorm_Square_Unit_Aug, ISEEDataset_Hnorm_Square_Unit_Aug
 from rtmag.dataset.dataset_hnorm_1_unit_aug import ISEEDataset_Multiple_Hnorm_1_Unit_Aug, ISEEDataset_Hnorm_1_Unit_Aug
+from rtmag.dataset.dataset_hnorm_unit_lowlou import LowLouDataset_Multiple_Hnorm_Unit, LowLouDataset_Hnorm_Unit
 
 from rtmag.train.diff_torch_batch import curl, divergence
 from rtmag.test.eval_plot import plot_sample
@@ -217,6 +218,9 @@ def get_dataloaders(args):
     elif args.data["dataset_name"] == "Hnorm_1_Unit_Aug":
         train_dataset = ISEEDataset_Multiple_Hnorm_1_Unit_Aug(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
         test_dataset = ISEEDataset_Hnorm_1_Unit_Aug(args.data['test_path'], args.data["b_norm"])
+    elif args.data["dataset_name"] == "LowLou_Hnorm_Unit":
+        train_dataset = LowLouDataset_Multiple_Hnorm_Unit(args.data['dataset_path'], args.data["b_norm"])
+        test_dataset = LowLouDataset_Hnorm_Unit(args.data['test_path'], args.data["b_norm"])
     else:
         raise NotImplementedError
     
@@ -411,6 +415,23 @@ def eval_plots(b_pred, b_true, b_pot, func, name):
     plt.tight_layout()
     return fig
 
+def eval_plots_true(b_pred, b_true, func, name):
+    heights = np.arange(b_pred.shape[2])
+
+    plots_b = []
+    for i in range(b_pred.shape[-2]):
+        plots_b.append(func(b_pred[:, :, i, :], b_true[:, :, i, :]))
+
+    fig = plt.figure(figsize=(6, 8))
+    plt.plot(plots_b, heights, color='red', label='PINO')
+    plt.legend()
+    plt.xlabel(name)
+    plt.ylabel('height [pixel]')
+    plt.xscale('log')
+    plt.yscale('linear')
+    plt.grid()
+    plt.tight_layout()
+    return fig
 
 #---------------------------------------------------------------------------------------
 def val_plot(model, test_dataloader, epoch, args, writer):
@@ -434,7 +455,7 @@ def val_plot(model, test_dataloader, epoch, args, writer):
         b_pred = outputs.detach().cpu().numpy()
         b_pred = b_pred[0, ...].transpose(2, 1, 0, 3)
 
-        # [b, z, y, x, 3] -> [x, y, z, 3]
+        # [b, 3, x, y, z] -> [x, y, z, 3]
         b_true = batch['label'].detach().cpu().numpy()
         b_true = b_true[0, ...].transpose(1, 2, 3, 0)
 
@@ -446,23 +467,31 @@ def val_plot(model, test_dataloader, epoch, args, writer):
         b_pred = b_pred * divi
         b_true = b_true * divi
 
-        fig1, fig2 = plot_sample(b_pred, b_true, ret=True)
+        fig1, fig2 = plot_sample(b_pred, b_true, ret=True, v_mm=b_norm/2)
         writer.add_figure('plot/pred', fig1, epoch)
         writer.add_figure('plot/true', fig2, epoch)
         plt.close()
         
         #-----------------------------------------------------------
-        # [b, z, y, x, 3] -> [x, y, z, 3]
-        b_pot = batch['pot'].detach().cpu().numpy()
-        b_pot = b_pot[0, ...].transpose(1, 2, 3, 0)
-    
-        fig = eval_plots(b_pred, b_true, b_pot, eval.l2_error, 'rel_l2_err')
-        writer.add_figure(f'plot/rel_l2_err', fig, epoch)
-        plt.close()
+        try:
+            b_pot = batch['pot'].detach().cpu().numpy()
+            b_pot = b_pot[0, ...].transpose(1, 2, 3, 0)
+        
+            fig = eval_plots(b_pred, b_true, b_pot, eval.l2_error, 'rel_l2_err')
+            writer.add_figure(f'plot/rel_l2_err', fig, epoch)
+            plt.close()
 
-        fig = eval_plots(b_pred, b_true, b_pot, eval.eps, 'eps')
-        writer.add_figure(f'plot/eps', fig, epoch)
-        plt.close()
+            fig = eval_plots(b_pred, b_true, b_pot, eval.eps, 'eps')
+            writer.add_figure(f'plot/eps', fig, epoch)
+            plt.close()
+        except:
+            fig = eval_plots_true(b_pred, b_true, eval.l2_error, 'rel_l2_err')
+            writer.add_figure(f'plot/rel_l2_err', fig, epoch)
+            plt.close()
+
+            fig = eval_plots_true(b_pred, b_true, eval.eps, 'eps')
+            writer.add_figure(f'plot/eps', fig, epoch)
+            plt.close()
 
         gc.collect()
         torch.cuda.empty_cache()
