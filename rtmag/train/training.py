@@ -174,7 +174,7 @@ def criterion(outputs, labels, dx, dy, dz, args):
     # potential_energy = torch.sum(torch.sum(Bp**2, dim=-1), dim=(1, 2, 3))
 
     # energy loss
-    loss_eps = torch.mean(torch.square(1.0 - pred_energy / label_energy))
+    loss_eps = torch.mean(torch.square(1.0 - (pred_energy / label_energy)))
     loss['energy'] = loss_eps
 
     # loss_free_eps = torch.mean(torch.square((pred_energy/potential_energy) - (label_energy/potential_energy)))

@@ -1,5 +1,5 @@
 {
-    "base_path": "/userhome/jeon_mg/workspace/base/uno_pi_cc_hnorm_unit_aug_ccc_square_energy_lowlou",
+    "base_path": "/userhome/jeon_mg/workspace/base/uno_pi_cc_hnorm_unit_aug_ccc_square_energy_lowlou2",
 
     "model": {
         "model_name": "UNO",
@@ -51,7 +51,7 @@
         "w_mse": 1.0,
         "w_ccc": 0.01,
         "ccc_square": true,
-        "w_energy": 0.01,
+        "w_energy": 1.0,
         "w_bc": 10.0,
         "w_ff": 1.0,
         "w_div": 1.0
