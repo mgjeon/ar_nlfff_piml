@@ -6,12 +6,12 @@
     "label_path": "/mnt/f/isee_dataset/11158/label/",
     "idx": null,
     "self_eval": false,
-    "overwrite": true,
+    "overwrite": false,
 
     "metrics": {
         "title": "NOAA 11158",
         "energy_ylim": [0.1, 1.3],
-        "free_energy_ylim": [-0.2, 0.3],
+        "free_energy_ylim": [0, 0.25],
         "metrics_ylim": [0.4, 1.0],
         "error_ylim": [0.0, 1.0],
         "eps_ylim": [0.0, 1.2],

@@ -110,7 +110,8 @@ for i in range(idx, len(input_path)):
         inputs = np.load(input_file)
         model_input = torch.from_numpy(inputs['input'])[None, ...] 
         model_input = model_input[:, :, :-1, :-1, :]  # remove duplicated periodic boundary
-        
+        model_input = torch.clip(model_input, -5000, 5000)
+
         if isNone:
             b_norm = torch.max(torch.abs(model_input)).item()
 

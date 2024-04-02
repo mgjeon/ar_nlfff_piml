@@ -6,7 +6,7 @@
     "label_path": "/mnt/f/isee_dataset/11158/label/",
     "idx": null,
     "self_eval": false,
-    "overwrite": true,
+    "overwrite": false,
 
     "cut": [128,-128, 64,-64, 0,128],
 

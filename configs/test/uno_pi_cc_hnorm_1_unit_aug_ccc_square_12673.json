@@ -6,7 +6,7 @@
     "label_path": "/mnt/f/isee_dataset/12673/label/",
     "idx": null,
     "self_eval": false,
-    "overwrite": true,
+    "overwrite": false,
 
     "metrics": {
         "title": "NOAA 12673",

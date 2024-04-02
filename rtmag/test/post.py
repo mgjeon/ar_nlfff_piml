@@ -46,6 +46,7 @@ class Metrics:
         self.draw_metrics(result_path)
         self.draw_error(result_path)
         self.draw_eps(result_path)
+        self.draw_bnorm(result_path)
 
 
     def draw_energy(self, result_path):
@@ -228,13 +229,45 @@ class Metrics:
         ax.xaxis.set_major_formatter(formatter)
 
         ax.set_xlabel('time (hour)',**text_style)
-        ax.set_ylabel('energy (erg) / 1e33 ',**text_style)
+        ax.set_ylabel('eps ',**text_style)
         ax.set_title(f'{title} / total mag energy starting at {str(obstime.iloc[0])}',**text_style)
         ax.set_ylim(ylim)
         plt.grid()
         plt.legend()
         plt.tight_layout()
         plt.savefig(result_path / 'eps.png', dpi=600)
+
+    def draw_bnorm(self, result_path):
+        df = self.df
+        title = self.title
+        # ylim = self.eps_ylim
+
+        obstime = df['obstime']
+
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+        marker_style = dict(linestyle='-', markersize=3, fillstyle='full')
+        text_style = dict(fontsize=16, fontdict={'family': 'monospace'})
+        ax.tick_params(labelsize=14)
+        ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.2f'))
+
+        # ascribe the data to the axes
+        ax.plot(obstime, df['b_norm'],'o', **marker_style, color='red', label='eps')
+
+        # format the x-axis with universal time
+        locator = AutoDateLocator()
+        locator.intervald[HOURLY] = [self.hour] # only show every 3 hours
+        formatter = DateFormatter('%H')
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(formatter)
+
+        ax.set_xlabel('time (hour)',**text_style)
+        ax.set_ylabel(' b_norm (G) ',**text_style)
+        ax.set_title(f'{title} / b_norm starting at {str(obstime.iloc[0])}',**text_style)
+        plt.grid()
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(result_path / 'b_norm.png', dpi=600)
 
 
 
