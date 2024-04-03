@@ -1,5 +1,5 @@
 {
-    "base_path": "/home/usr/workspace/base/uno_pi_cc_hnorm_unit",
+    "base_path": "/userhome/jeon_mg/workspace/base/uno_pi_cc_hnorm_unit",
 
     "model": {
         "model_name": "UNO",
@@ -37,11 +37,11 @@
 
     "data": {
         "dataset_name": "Hnorm_Unit",
-        "dataset_path": "/mnt/f/isee_dataset",
+        "dataset_path": "/nas/userdata/jeon_mg/isee_dataset",
         "test_noaa": ["11158", "12673"],
-        "test_path": "/mnt/f/isee_dataset/11158",
+        "test_path": "/nas/userdata/jeon_mg/isee_dataset/11158",
         "b_norm": 2500,
-        "batch_size": 1,
+        "batch_size": 4,
         "num_workers": 4
     },
 
