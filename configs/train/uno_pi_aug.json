@@ -1,26 +1,17 @@
 {
-    "base_path": "/userhome/jeon_mg/workspace/base/uno_pi",
+    "base_path": "/userhome/jeon_mg/workspace/base/uno_pi_aug",
 
     "model": {
         "model_name": "UNO",
-
-        "hidden_channels": 32,
         "in_channels": 1,
         "out_channels": 256,
+
+
         "lifting_channels": 256,
         "projection_channels": 256,
+        "hidden_channels": 32,
+
         "n_layers": 6,
-
-        "factorization": "tucker",
-        "implementation": "factorized",
-        "rank": 0.5,
-
-        "uno_n_modes": [[ 8, 8, 8],
-                        [ 4, 4, 4],
-                        [ 4, 4, 4],
-                        [ 4, 4, 4],
-                        [ 4, 4, 4],
-                        [ 8, 8, 8]],
         "uno_out_channels": [32,
                              64,
                              64,
@@ -32,11 +23,22 @@
                          [1.0,1.0,1.0],
                          [1.0,1.0,1.0],
                          [2.0,2.0,2.0],
-                         [1.0,1.0,1.0]]
+                         [1.0,1.0,1.0]],
+        "uno_n_modes": [[ 8, 8,  8],
+                        [ 4, 4,  4],
+                        [ 4, 4,  4],
+                        [ 4, 4,  4],
+                        [ 4, 4,  4],
+                        [ 8, 8,  8]],
+
+        "factorization": null,
+        "implementation": "factorized",
+        "rank": 1.0
+
     },
 
     "data": {
-        "dataset_name": "Hnorm_Unit_Aug_New",
+        "dataset_name": "Hnorm_Unit_Aug",
         "dataset_path": "/mnt/userdata/jeon_mg/isee_dataset",
         "test_noaa": ["11158", "12673"],
         "test_path": "/mnt/userdata/jeon_mg/isee_dataset/11158",
@@ -48,7 +50,7 @@
     "training": {
         "learning_late": 1e-5,
         "n_epochs": 100,
-        "save_epoch_every": 1,
+        "save_epoch_every": 10,
         "w_mse": 1.0,
         "w_ccc": 0.01,
         "w_bc": 10.0,

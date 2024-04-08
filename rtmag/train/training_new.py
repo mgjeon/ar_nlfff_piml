@@ -87,15 +87,9 @@ def criterion(outputs, labels, dx, dy, dz, args):
 
 #---------------------------------------------------------------------------------------
 def get_dataloaders(args):
-    if args.data["dataset_name"] == "Hnorm_Unit":
-        train_dataset = ISEEDataset_Multiple_Hnorm_Unit(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
-        test_dataset = ISEEDataset_Hnorm_Unit(args.data['test_path'], args.data["b_norm"])
-    elif args.data["dataset_name"] == "Hnorm_Unit_New":
+    if args.data["dataset_name"] == "Hnorm_Unit_New":
         train_dataset = ISEEDataset_Multiple_Hnorm_Unit_New(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
         test_dataset = ISEEDataset_Hnorm_Unit_New(args.data['test_path'], args.data["b_norm"])
-    elif args.data["dataset_name"] == "Hnorm_Unit_Aug":
-        train_dataset = ISEEDataset_Multiple_Hnorm_Unit_Aug(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
-        test_dataset = ISEEDataset_Hnorm_Unit_Aug(args.data['test_path'], args.data["b_norm"])
     elif args.data["dataset_name"] == "Hnorm_Unit_Aug_New":
         train_dataset = ISEEDataset_Multiple_Hnorm_Unit_Aug_New(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
         test_dataset = ISEEDataset_Hnorm_Unit_Aug_New(args.data['test_path'], args.data["b_norm"])
