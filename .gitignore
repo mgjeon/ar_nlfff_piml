@@ -2,3 +2,5 @@
 **/*.egg-info/
 **/download/**/*.fits
 **/.ipynb_checkpoints/
+notebook_paper/download
+notebook_paper/load_input
