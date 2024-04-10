@@ -181,9 +181,9 @@ def criterion(outputs, labels, dx, dy, dz, args):
     # loss['free_energy'] = loss_free_eps
     
     # boundary condition loss
-    loss_bc = 0.0
+    # loss_bc = 0.0
     # bottom (z=0)
-    loss_bc += torch.mean(torch.square(b[:, :, :, 0, :] - B[:, :, :, 0, :]))
+    loss_bc = torch.mean(torch.square(b[:, :, :, 0, :] - B[:, :, :, 0, :]))
     loss['bc'] = loss_bc
 
     # force-free loss

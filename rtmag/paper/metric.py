@@ -3,6 +3,37 @@ from numba import prange, njit
 from rtmag.paper.diff import curl, divergence
 
 #--------------------------------------------------
+def evaluate_energy(b, B, Bp, dV, isprint=False):
+    # b : model solution
+    # B : reference magnetic field
+    # Bp: potential magnetic field
+
+    result = {}
+    result['pred_E_1e33'] = energy(b, dV) / 1e33
+    result['ref_E_1e33'] = energy(B, dV) / 1e33
+    result['pot_E_1e33'] = energy(Bp, dV) / 1e33
+    result['dV_1e23'] = dV / 1e23
+
+    result['pred_E_unit'] = energy_unit(b)
+    result['ref_E_unit'] = energy_unit(B)
+    result['pot_E_unit'] = energy_unit(Bp)
+
+    result["C_vec"] = C_vec(b, B)
+    result["C_cs"] = C_cs(b, B)
+    result["E_n_prime"] = En_prime(b, B)
+    result["E_m_prime"] = Em_prime(b, B)
+    result['eps'] = eps(b, B)
+    result['rel_l2_err'] = rel_l2_error(b, B)
+
+    if isprint:
+        for key, value in result.items():
+            print(f"{key:<10}: {value:.2f}")
+
+    return result
+
+
+
+#--------------------------------------------------
 
 @njit(parallel=True, cache=True)
 def current_density(b, dx, dy, dz):
@@ -21,7 +52,7 @@ def current_density(b, dx, dy, dz):
 
     cur_den = curl(b, dx, dy, dz)*curlb_to_j
     
-    return cur_den.astype(np.float32)
+    return cur_den
 
 
 @njit(parallel=True, cache=True)
@@ -43,7 +74,7 @@ def dot_product(a, b):
                 for l in prange(L):
                     c[i, j, k] += a[i, j, k, l]*b[i, j, k, l]
     
-    return c.astype(np.float32)
+    return c
 
 
 @njit(parallel=True, cache=True)
@@ -67,7 +98,7 @@ def cross_product(a, b):
                 res[i, j, k, 1] = a[i, j, k, 2]*b[i, j, k, 0] - a[i, j, k, 0]*b[i, j, k, 2]
                 res[i, j, k, 2] = a[i, j, k, 0]*b[i, j, k, 1] - a[i, j, k, 1]*b[i, j, k, 0]
 
-    return res.astype(np.float32)
+    return res
 
 
 @njit(parallel=True, cache=True)
@@ -81,7 +112,7 @@ def vector_norm(a):
     """
     c = np.zeros(a.shape[:-1])
     c = np.sqrt(dot_product(a, a))
-    return c.astype(np.float32)
+    return c
 
 
 @njit(parallel=True, cache=True)
@@ -96,16 +127,28 @@ def energy(B, dV):
     """
 
     ene = (vector_norm(B)**2).sum() * (dV/(8*np.pi))
-    return ene.astype(np.float32)
+    return ene
 
 
-def l2_error(u_pred, u_true):
+@njit(parallel=True, cache=True)
+def energy_unit(B):
+    """
+    Input:
+        B  : [Nx, Ny, Nz, 3]   [Gauss]
+
+    Output:
+        energy: float          ... requires * (dV/(8*np.pi))
+    """
+
+    ene = (vector_norm(B)**2).sum()
+    return ene
+
+def rel_l2_error(u_pred, u_true):
     """
     relative l2 error
     """
     error = np.linalg.norm(u_pred - u_true) / np.linalg.norm(u_true)
-    return error.astype(np.float32)
-
+    return error
 
 #--------------------------------------------------
 @njit(parallel=True, cache=True)
@@ -141,7 +184,7 @@ def metrics_j_exclude(b):
     L_f = res.mean()
     L_d = (divergence(b)**2).mean()
 
-    return CW_sin.astype(np.float32), L_f.astype(np.float32), L_d.astype(np.float32)
+    return CW_sin, L_f, L_d
 
 
 @njit(parallel=True, cache=True)
@@ -175,14 +218,14 @@ def metrics_j(b):
     L_f = res.mean()
     L_d = (divergence(b)**2).mean()
 
-    return CW_sin.astype(np.float32), L_f.astype(np.float32), L_d.astype(np.float32)
+    return CW_sin, L_f, L_d
 
 
 @njit(cache=True)
 def lorentz_force(b_field, j_field=None):
     j_field = j_field if j_field is not None else curl(b_field)
     l = cross_product(j_field, b_field)
-    return l.astype(np.float32)
+    return l
 
 
 @njit(parallel=True, cache=True)
@@ -191,7 +234,7 @@ def angle(b_field, j_field):
     j_cross_b = cross_product(j_field, b_field)
     sig = vector_norm(j_cross_b) / norm
     res = np.arcsin(np.clip(sig, -1. + 1e-7, 1. - 1e-7)) * (180 / np.pi)
-    return res.astype(np.float32)
+    return res
 
 
 @njit(parallel=True, cache=True)
@@ -200,7 +243,7 @@ def normalized_divergence(b_field):
     de = vector_norm(b_field) 
 
     res = nu / (de + 1e-7)
-    return res.astype(np.float32)
+    return res
 
 
 @njit(parallel=True, cache=True)
@@ -209,7 +252,7 @@ def weighted_theta(b, j=None):
     sigma = vector_norm(lorentz_force(b, j)) / vector_norm(b) / vector_norm(j)
     w_sigma = np.average((sigma), weights=vector_norm(j))
     theta_j = np.arcsin(w_sigma) * (180 / np.pi)
-    return theta_j.astype(np.float32)
+    return theta_j
 
 
 #--------------------------------------------------
@@ -274,7 +317,7 @@ def C_vec(b, B):
     de = np.sqrt( (vector_norm(B)**2).sum() * (vector_norm(b)**2).sum() )
 
     res = nu / de
-    return res.astype(np.float32)
+    return res
 
 
 @njit(parallel=True, cache=True)
@@ -305,7 +348,7 @@ def C_cs_exclude(b, B):
 
     res = np.sum(res)
     res = res / M
-    return res.astype(np.float32)
+    return res
 
 
 @njit(parallel=True, cache=True)
@@ -335,7 +378,7 @@ def C_cs(b, B):
 
     res = np.sum(res)
     res = res / M
-    return res.astype(np.float32)
+    return res
 
 
 @njit(parallel=True, cache=True)
@@ -354,7 +397,7 @@ def En_prime(b, B):
 
     res = nu / de
     res = 1 - res
-    return res.astype(np.float32)
+    return res
 
 
 @njit(parallel=True, cache=True)
@@ -386,7 +429,7 @@ def Em_prime_exclude(b, B):
     res = np.sum(res)
     res = res / M
     res = 1 - res
-    return res.astype(np.float32)
+    return res
 
 
 @njit(parallel=True, cache=True)
@@ -417,7 +460,7 @@ def Em_prime(b, B):
     res = np.sum(res)
     res = res / M
     res = 1 - res
-    return res.astype(np.float32)
+    return res
 
 
 @njit(parallel=True, cache=True)
@@ -436,4 +479,4 @@ def eps(b, B):
 
     res = nu / de
 
-    return res.astype(np.float32)
+    return res
