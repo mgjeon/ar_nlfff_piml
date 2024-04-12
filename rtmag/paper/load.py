@@ -68,7 +68,7 @@ class MyModel:
         return model, args, checkpoint
 
 
-    def get_pred(self, input_path):
+    def get_pred(self, input_path, b_norm=None):
         model = self.model
         args = self.args
         device = self.device
@@ -84,9 +84,9 @@ class MyModel:
         if clip is not None:
             model_input = torch.clip(model_input, -clip, clip)
 
-        b_norm = args.data["b_norm"]
-
         if b_norm is None:
+            b_norm = args.data["b_norm"]
+        elif b_norm == "max":
             b_norm = torch.max(torch.abs(model_input)).item()
         
         # [batch_size, 1, 256, 512, 3]
@@ -166,13 +166,15 @@ class MyModel:
 
         return b.astype(np.float32)
     
-    def get_pred_from_numpy(self, model_input):
-        model, args, checkpoint = self.load_model()
+    def get_pred_from_numpy(self, model_input, b_norm=None):
+        model = self.model
+        args = self.args
         device = self.device
-        b_norm = args.data["b_norm"]
-        model_input = torch.from_numpy(model_input)
-        model_input = model_input.to(device)
-        model_output = model(model_input) / b_norm
+        if b_norm is None:
+            b_norm = args.data["b_norm"]
+        # [bs, 1, 256, 512, 3]
+        model_input = torch.from_numpy(model_input.astype(np.float32) / b_norm).to(device)
+        model_output = model(model_input)
         # [512, 256, 256, 3]
         b = model_output.detach().cpu().numpy().transpose(0, 3, 2, 1, 4)[0]
         divi = (b_norm / np.arange(1, b.shape[2] + 1)).reshape(1, 1, -1, 1)
@@ -211,3 +213,8 @@ class MyModel:
         
         return dx, dy, dz, dV
 
+    def get_coords(self, label_path):
+        labels = np.load(label_path)
+        x, y, z = labels['x'], labels['y'], labels['z']  # Mm
+     
+        return x, y, z

@@ -2,6 +2,24 @@ import numpy as np
 from numba import prange, njit
 from rtmag.paper.diff import curl, divergence
 
+
+#--------------------------------------------------
+def evaluate_sharp(b, dV, isprint=False):
+    # b : model solution  [Gauss]
+    # dV: volume element  [cm^3]
+
+    result = {}
+    result['pred_E_1e33'] = energy(b, dV) / 1e33
+    result['dV_1e23'] = dV / 1e23
+    result['pred_E_unit'] = energy_unit(b)
+
+    if isprint:
+        for key, value in result.items():
+            print(f"{key:<10}: {value:.2f}")
+
+    return result
+
+
 #--------------------------------------------------
 def evaluate_energy(b, B, Bp, dV, isprint=False):
     # b : model solution

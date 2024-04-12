@@ -24,52 +24,23 @@ def criterion(outputs, labels, dx, dy, dz, args):
 
     loss = {}
     # [b, z, y, x, 3]
-    opts = torch.flatten(outputs, start_dim=1)
-    labs = torch.flatten(labels, start_dim=1)
+    opts = torch.flatten(outputs)
+    labs = torch.flatten(labels)
 
     # mse loss
-    mse = MeanSquaredError().to(device)
-    loss_mse = 0.0
-    for i in range(opts.shape[0]):
-        loss_mse += torch.mean(mse(opts[i], labs[i]))
-    loss_mse /= opts.shape[0]
-    loss['mse'] = loss_mse
+    loss['mse'] = torch.mean(torch.square(opts - labs))
 
     # ccc loss
     ccc = ConcordanceCorrCoef().to(device)
-    loss_ccc = 0.0
-    for i in range(opts.shape[0]):
-        loss_ccc += torch.mean(torch.square(1.0 - ccc(opts[i], labs[i])))
-    loss_ccc /= opts.shape[0]
-    loss['ccc'] = loss_ccc
+    loss['ccc'] = torch.abs(1.0 - ccc(opts, labs))
 
-    # # [b, z, y, x, 3] -> [b, z, ...]
-    # opts = torch.flatten(outputs, start_dim=2)
-    # lbls = torch.flatten(labels, start_dim=2)
-
-    # # [b, z, ...] -> [b, ..., z]
-    # opts = torch.permute(opts, (0, 2, 1))
-    # lbls = torch.permute(lbls, (0, 2, 1))
-
-    # # mse loss
-    # mse = MeanSquaredError(num_outputs=opts.shape[-1]).to(device)
-    # loss_mse = 0.0
-    # for i in range(opts.shape[0]):
-    #     loss_mse += torch.mean(mse(opts[i], lbls[i]))
-    # loss_mse /= opts.shape[0]
-    # loss['mse'] = loss_mse
-
-    # # ccc loss
-    # ccc = ConcordanceCorrCoef(num_outputs=opts.shape[-1]).to(device)
-    # loss_ccc = 0.0
-    # for i in range(opts.shape[0]):
-    #     loss_ccc += torch.mean(torch.square(1.0 - ccc(opts[i], lbls[i])))
-    # loss_ccc /= opts.shape[0]
-    # loss['ccc'] = loss_ccc
-    
     # [b, z, y, x, 3] -> [b, x, y, z, 3]
     b = torch.permute(outputs, (0, 3, 2, 1, 4))
     B = torch.permute(labels, (0, 3, 2, 1, 4))
+
+    # boundary condition loss
+    # bottom (z=0)
+    loss['bc'] = torch.mean(torch.square(b[:, :, :, 0, :] - B[:, :, :, 0, :]))
 
     # unnormalization
     divisor = (1 / np.arange(1, b.shape[2] + 1)).reshape(1, 1, -1, 1).astype(np.float32)
@@ -77,16 +48,9 @@ def criterion(outputs, labels, dx, dy, dz, args):
     b = b * divisor
     B = B * divisor
 
-    # boundary condition loss
-    loss_bc = 0.0
-    # bottom (z=0)
-    loss_bc += torch.mean(torch.square(b[:, :, :, 0, :] - B[:, :, :, 0, :]))
-    loss['bc'] = loss_bc
-
     # force-free loss
     bx, by, bz = b[..., 0], b[..., 1], b[..., 2]
     jx, jy, jz = curl(bx, by, bz, dx, dy, dz)
-    b = torch.stack([bx, by, bz], -1)
     j = torch.stack([jx, jy, jz], -1)
 
     jxb = torch.cross(j, b, -1)
@@ -98,6 +62,17 @@ def criterion(outputs, labels, dx, dy, dz, args):
     div_b = divergence(bx, by, bz, dx, dy, dz)
     loss_div = torch.mean(torch.square(div_b))
     loss['div'] = loss_div
+
+    # current loss
+    Bx, By, Bz = B[..., 0], B[..., 1], B[..., 2]
+    Jx, Jy, Jz = curl(Bx, By, Bz, dx, dy, dz)
+    J = torch.stack([Jx, Jy, Jz], -1)
+    loss['current'] = torch.mean(torch.square(J - j))
+
+    # energy loss
+    b_energy = torch.sum(b**2, -1)
+    B_energy = torch.sum(B**2, -1)
+    loss['energy'] = torch.mean(torch.square(b_energy - B_energy))
 
     return loss
 
@@ -172,12 +147,14 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
 
         # Training
         model = model.train()
-        total_train_loss = 0
-        total_train_loss_mse = 0
-        total_train_loss_ccc = 0
-        total_train_loss_bc = 0
-        total_train_loss_ff = 0
-        total_train_loss_div = 0
+        total_train_loss = 0.0
+        total_train_loss_mse = 0.0
+        total_train_loss_ccc = 0.0
+        total_train_loss_bc = 0.0
+        total_train_loss_ff = 0.0
+        total_train_loss_div = 0.0
+        total_train_loss_cur = 0.0
+        total_train_loss_ene = 0.0
 
         with tqdm(train_dataloader, desc='Training', ncols=140) as tqdm_loader_train:
             for i_batch, sample_batched in enumerate(tqdm_loader_train):
@@ -192,7 +169,9 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
                      + args.training['w_ccc']*loss_dict['ccc'] \
                      + args.training['w_bc']*loss_dict['bc'] \
                      + args.training['w_ff']*loss_dict['ff'] \
-                     + args.training['w_div']*loss_dict['div']
+                     + args.training['w_div']*loss_dict['div'] \
+                     + args.training['w_cur']*loss_dict['current'] \
+                     + args.training['w_ene']*loss_dict['energy']
 
                 loss.backward()
 
@@ -211,6 +190,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
                 total_train_loss_bc += loss_dict['bc'].item()
                 total_train_loss_ff += loss_dict['ff'].item()
                 total_train_loss_div += loss_dict['div'].item()
+                total_train_loss_cur += loss_dict['current'].item()
+                total_train_loss_ene += loss_dict['energy'].item()
 
                 writer.add_scalar('step_train/loss', loss.item(), global_step)
                 writer.add_scalar('step_train/loss_mse', loss_dict['mse'].item(), global_step)
@@ -218,6 +199,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
                 writer.add_scalar('step_train/loss_bc', loss_dict['bc'].item(), global_step)
                 writer.add_scalar('step_train/loss_ff', loss_dict['ff'].item(), global_step)
                 writer.add_scalar('step_train/loss_div', loss_dict['div'].item(), global_step)
+                writer.add_scalar('step_train/loss_cur', loss_dict['current'].item(), global_step)
+                writer.add_scalar('step_train/loss_ene', loss_dict['energy'].item(), global_step)
 
                 writer.add_scalar('epoch', epoch, global_step)
                 
@@ -231,6 +214,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
         total_train_loss_bc /= len(train_dataloader)
         total_train_loss_ff /= len(train_dataloader)
         total_train_loss_div /= len(train_dataloader)
+        total_train_loss_cur /= len(train_dataloader)
+        total_train_loss_ene /= len(train_dataloader)
 
         writer.add_scalar('train/loss', total_train_loss, epoch)
         writer.add_scalar('train/loss_mse', total_train_loss_mse, epoch)
@@ -238,6 +223,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
         writer.add_scalar('train/loss_bc', total_train_loss_bc, epoch)
         writer.add_scalar('train/loss_ff', total_train_loss_ff, epoch)
         writer.add_scalar('train/loss_div', total_train_loss_div, epoch)
+        writer.add_scalar('train/loss_cur', total_train_loss_cur, epoch)
+        writer.add_scalar('train/loss_ene', total_train_loss_ene, epoch)
         
         global_step_tmp = global_step
 
@@ -375,6 +362,8 @@ def val(model, test_dataloader, epoch, args, writer):
         total_val_loss_bc = 0.0
         total_val_loss_ff = 0.0
         total_val_loss_div = 0.0
+        total_val_loss_cur = 0.0
+        total_val_loss_ene = 0.0
 
         for i_batch, sample_batched in enumerate(tqdm(test_dataloader, position=1, desc='Validation', leave=False, ncols=70)):
             gc.collect()
@@ -386,7 +375,9 @@ def val(model, test_dataloader, epoch, args, writer):
                      + args.training['w_ccc']*val_loss_dict['ccc'] \
                      + args.training['w_bc']*val_loss_dict['bc'] \
                      + args.training['w_ff']*val_loss_dict['ff'] \
-                     + args.training['w_div']*val_loss_dict['div']
+                     + args.training['w_div']*val_loss_dict['div'] \
+                     + args.training['w_cur']*val_loss_dict['current'] \
+                     + args.training['w_ene']*val_loss_dict['energy']
 
             total_val_loss += val_loss.item()
             total_val_loss_mse += val_loss_dict['mse'].item()
@@ -394,6 +385,8 @@ def val(model, test_dataloader, epoch, args, writer):
             total_val_loss_bc += val_loss_dict['bc'].item()
             total_val_loss_ff += val_loss_dict['ff'].item()
             total_val_loss_div += val_loss_dict['div'].item()
+            total_val_loss_cur += val_loss_dict['current'].item()
+            total_val_loss_ene += val_loss_dict['energy'].item()
         
         total_val_loss /= len(test_dataloader)
         total_val_loss_mse /= len(test_dataloader)
@@ -401,6 +394,8 @@ def val(model, test_dataloader, epoch, args, writer):
         total_val_loss_bc /= len(test_dataloader)
         total_val_loss_ff /= len(test_dataloader)
         total_val_loss_div /= len(test_dataloader)
+        total_val_loss_cur /= len(test_dataloader)
+        total_val_loss_ene /= len(test_dataloader)
 
         writer.add_scalar('val/loss', total_val_loss, epoch)
         writer.add_scalar('val/loss_mse', total_val_loss_mse, epoch)
@@ -408,5 +403,7 @@ def val(model, test_dataloader, epoch, args, writer):
         writer.add_scalar('val/loss_bc', total_val_loss_bc, epoch)
         writer.add_scalar('val/loss_ff', total_val_loss_ff, epoch)
         writer.add_scalar('val/loss_div', total_val_loss_div, epoch)
+        writer.add_scalar('val/loss_cur', total_val_loss_cur, epoch)
+        writer.add_scalar('val/loss_ene', total_val_loss_ene, epoch)
 
         return total_val_loss
