@@ -310,8 +310,7 @@ def val(model, test_dataloader, epoch, args, writer):
                      + args.training['w_ccc']*val_loss_dict['ccc'] \
                      + args.training['w_bc']*val_loss_dict['bc'] \
                      + args.training['w_cur']*val_loss_dict['cur'] \
-                     + args.training['w_div']*val_loss_dict['div'] \
-                     + args.training.get('w_energy', 0)*val_loss_dict['energy']
+                     + args.training['w_div']*val_loss_dict['div']
 
             total_val_loss += val_loss.item()
             total_val_loss_mse += val_loss_dict['mse'].item()
