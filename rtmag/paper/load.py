@@ -180,8 +180,6 @@ class MyModel:
         divi = (b_norm / np.arange(1, b.shape[2] + 1)).reshape(1, 1, -1, 1)
         b = b * divi
 
-        print(f"Model loaded from epoch {self.epoch}")
-
         return b.astype(np.float32)
     
 

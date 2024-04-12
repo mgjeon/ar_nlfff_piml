@@ -61,7 +61,85 @@ class ISEEDataset_Hnorm_Unit_Aug(Dataset):
 
         return samples
     
+
+class ISEEDataset_NoLabel_Hnorm_Unit_Aug(Dataset):
+
+    def __init__(self, data_path, b_norm):
+        files = list(Path(data_path).glob('**/input/*.npz'))
+        self.files = sorted([f for f in files])
+        self.b_norm = b_norm
+        self.length = len(self.files)
+
+    def __len__(self):
+        return 2*self.length
+
+    def __getitem__(self, idx):
+        is_flip = False
+        if idx >= self.length:
+            is_flip = True
+            idx = idx - self.length
+        input_file = self.files[idx]
+        # NLFFF(z=0) [3, 513, 257,  1]
+        inputs = torch.from_numpy(np.load(input_file, mmap_mode='r')['input'].astype(np.float32)) / self.b_norm
+        # NLFFF(z=0) [3, 512, 256,  1]  remove duplicated periodic boundary
+        inputs = inputs[:, :-1, :-1, :]
+
+        # Assume unit dx, dy, dz
+        dx = torch.from_numpy(np.array([1.0]).astype(np.float32)).reshape(-1, 1)
+        dy = torch.from_numpy(np.array([1.0]).astype(np.float32)).reshape(-1, 1)
+        dz = torch.from_numpy(np.array([1.0]).astype(np.float32)).reshape(-1, 1)
+
+        if is_flip:
+            inputs = torch.flip(inputs, dims=(1, 2))
+            inputs[0] = -inputs[0]
+            inputs[1] = -inputs[1]
+
+
+        samples = {'input': inputs,
+                   'input_name': input_file.stem,
+                   'dx': dx, 'dy': dy, 'dz': dz}
+
+        return samples
     
+
+class ISEEDataset_NoLabel_Hnorm_Unit_Single_Aug(Dataset):
+
+    def __init__(self, input_file, b_norm):
+        self.files = [input_file]
+        self.b_norm = b_norm
+        self.length = len(self.files)
+
+    def __len__(self):
+        return 2*self.length
+
+    def __getitem__(self, idx):
+        is_flip = False
+        if idx >= self.length:
+            is_flip = True
+            idx = idx - self.length
+        input_file = self.files[idx]
+        # NLFFF(z=0) [3, 513, 257,  1]
+        inputs = torch.from_numpy(np.load(input_file, mmap_mode='r')['input'].astype(np.float32)) / self.b_norm
+        # NLFFF(z=0) [3, 512, 256,  1]  remove duplicated periodic boundary
+        inputs = inputs[:, :-1, :-1, :]
+        
+        # Assume unit dx, dy, dz
+        dx = torch.from_numpy(np.array([1.0]).astype(np.float32)).reshape(-1, 1)
+        dy = torch.from_numpy(np.array([1.0]).astype(np.float32)).reshape(-1, 1)
+        dz = torch.from_numpy(np.array([1.0]).astype(np.float32)).reshape(-1, 1)
+
+        if is_flip:
+            inputs = torch.flip(inputs, dims=(1, 2))
+            inputs[0] = -inputs[0]
+            inputs[1] = -inputs[1]
+
+        samples = {'input': inputs,
+                   'input_name': input_file.stem,
+                   'dx': dx, 'dy': dy, 'dz': dz}
+
+        return samples
+    
+
 class ISEEDataset_Multiple_Hnorm_Unit_Aug(Dataset):
 
     def __init__(self, dataset_path, b_norm, test_noaa=None):

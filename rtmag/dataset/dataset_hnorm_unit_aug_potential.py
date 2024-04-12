@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 import numpy as np
 from pathlib import Path 
 
-class ISEEDataset_Hnorm_Unit_Aug(Dataset):
+class ISEEDataset_Hnorm_Unit_Aug_Potential(Dataset):
 
     def __init__(self, data_path, b_norm):
         files = list(Path(data_path).glob('**/input/*.npz'))
@@ -19,11 +19,6 @@ class ISEEDataset_Hnorm_Unit_Aug(Dataset):
         if idx >= self.length:
             is_flip = True
             idx = idx - self.length
-        input_file = self.files[idx]
-        # NLFFF(z=0) [3, 513, 257,  1]
-        inputs = torch.from_numpy(np.load(input_file, mmap_mode='r')['input'].astype(np.float32)) / self.b_norm
-        # NLFFF(z=0) [3, 512, 256,  1]  remove duplicated periodic boundary
-        inputs = inputs[:, :-1, :-1, :]
 
         # Assume unit dx, dy, dz
         dx = torch.from_numpy(np.array([1.0]).astype(np.float32)).reshape(-1, 1)
@@ -31,16 +26,16 @@ class ISEEDataset_Hnorm_Unit_Aug(Dataset):
         dz = torch.from_numpy(np.array([1.0]).astype(np.float32)).reshape(-1, 1)
 
         label_file = self.files[idx].parent.parent / 'label' / f'label_{self.files[idx].stem[6:]}.npz'
+        #           [3,  NX,  NY,  NZ]
         # NLFFF     [3, 513, 257, 257]
-        labels = torch.from_numpy(np.load(label_file, mmap_mode='r')['label'].astype(np.float32))
+        labels = torch.from_numpy(np.load(label_file, mmap_mode='r')['pot'].astype(np.float32))
         divisor = (self.b_norm / np.arange(1, labels.shape[-1] + 1)).reshape(1, 1, 1, -1).astype(np.float32)
         labels = labels / divisor
         # NLFFF     [3, 512, 256, 256]  remove duplicated periodic boundary
         labels = labels[:, :-1, :-1, :-1]
 
-        # [3, 513, 257, 257] -> [3, 512, 256, 256]  remove duplicated periodic boundary
-        potential = torch.from_numpy(np.load(label_file, mmap_mode='r')['pot'].astype(np.float32))
-        potential = potential[:, :-1, :-1, :-1]
+        #           [3,  NX,  NY,  1]
+        inputs = labels[:, :, :, 0][:, :, :, None]
 
         if is_flip:
             # rotation by 180 deg around z-axis
@@ -50,19 +45,15 @@ class ISEEDataset_Hnorm_Unit_Aug(Dataset):
             labels = torch.flip(labels, dims=(1, 2))
             labels[0] = -labels[0]
             labels[1] = -labels[1]
-            potential = torch.flip(potential, dims=(1, 2))
-            potential[0] = -potential[0]
-            potential[1] = -potential[1]
 
-
-        samples = {'input': inputs, 'label': labels, 'pot': potential,
-                   'input_name': input_file.stem, 'label_name': label_file.stem,
+        samples = {'input': inputs, 'label': labels,
+                   'label_name': label_file.stem,
                    'dx': dx, 'dy': dy, 'dz': dz}
 
         return samples
     
     
-class ISEEDataset_Multiple_Hnorm_Unit_Aug(Dataset):
+class ISEEDataset_Multiple_Hnorm_Unit_Aug_Potential(Dataset):
 
     def __init__(self, dataset_path, b_norm, test_noaa=None):
         self.files = list(Path(dataset_path).glob('**/input/*.npz'))
@@ -83,11 +74,6 @@ class ISEEDataset_Multiple_Hnorm_Unit_Aug(Dataset):
         if idx >= self.length:
             is_flip = True
             idx = idx - self.length
-        input_file = self.files[idx]
-        # NLFFF(z=0) [3, 513, 257,  1]
-        inputs = torch.from_numpy(np.load(input_file, mmap_mode='r')['input'].astype(np.float32)) / self.b_norm
-        # NLFFF(z=0) [3, 512, 256,  1]  remove duplicated periodic boundary
-        inputs = inputs[:, :-1, :-1, :]
         
         dx = torch.from_numpy(np.array([1.0]).astype(np.float32)).reshape(-1, 1)
         dy = torch.from_numpy(np.array([1.0]).astype(np.float32)).reshape(-1, 1)
@@ -95,11 +81,13 @@ class ISEEDataset_Multiple_Hnorm_Unit_Aug(Dataset):
 
         label_file = self.files[idx].parent.parent / 'label' / f'label_{self.files[idx].stem[6:]}.npz'
         # NLFFF     [3, 513, 257, 257]
-        labels = torch.from_numpy(np.load(label_file, mmap_mode='r')['label'].astype(np.float32))
+        labels = torch.from_numpy(np.load(label_file, mmap_mode='r')['pot'].astype(np.float32))
         divisor = (self.b_norm / np.arange(1, labels.shape[-1] + 1)).reshape(1, 1, 1, -1).astype(np.float32)
         labels = labels / divisor
         # NLFFF     [3, 512, 256, 256]  remove duplicated periodic boundary
         labels = labels[:, :-1, :-1, :-1]
+
+        inputs = labels[:, :, :, 0][:, :, :, None]
 
         if is_flip:
             # rotation by 180 deg around z-axis
@@ -111,7 +99,7 @@ class ISEEDataset_Multiple_Hnorm_Unit_Aug(Dataset):
             labels[1] = -labels[1]
 
         samples = {'input': inputs, 'label': labels, 
-                   'input_name': input_file.stem, 'label_name': label_file.stem,
+                   'label_name': label_file.stem,
                    'dx': dx, 'dy': dy, 'dz': dz}
 
         return samples

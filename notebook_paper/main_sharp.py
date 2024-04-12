@@ -95,7 +95,7 @@ for i in range(idx, len(data_paths)):
         b = mm.get_pred_from_numpy(model_input)
 
         #----------------------------------------------------------------------------------
-        tstr = Path(data_path[0]).name[23:38]
+        tstr = Path(data_path[0]).name[-27:-12]
         obstime = parse_tai_string(tstr)
         res = {}
         res['obstime'] = obstime

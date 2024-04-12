@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 from torchmetrics.regression import ConcordanceCorrCoef
 
-from rtmag.dataset.dataset_hnorm_unit_aug import ISEEDataset_Multiple_Hnorm_Unit_Aug, ISEEDataset_Hnorm_Unit_Aug
+from rtmag.dataset.dataset_hnorm_unit_aug_potential import ISEEDataset_Multiple_Hnorm_Unit_Aug_Potential, ISEEDataset_Hnorm_Unit_Aug_Potential
 
 from rtmag.train.diff_torch_batch import curl, divergence
 from rtmag.test.eval_plot import plot_sample
@@ -47,15 +47,14 @@ def criterion(outputs, labels, dx, dy, dz, args):
     b = b * divisor
     B = B * divisor
 
-    # force-free loss
+    # current-free loss
     bx, by, bz = b[..., 0], b[..., 1], b[..., 2]
     jx, jy, jz = curl(bx, by, bz, dx, dy, dz)
     j = torch.stack([jx, jy, jz], -1)
 
-    jxb = torch.cross(j, b, -1)
-    loss_ff = (jxb**2).sum(-1) / ((b**2).sum(-1) + 1e-7)
-    loss_ff = torch.mean(loss_ff)
-    loss['ff'] = loss_ff
+    loss_cur = (j**2).sum(-1)
+    loss_cur = torch.mean(loss_cur)
+    loss['cur'] = loss_cur
 
     # divergence-less loss
     div_b = divergence(bx, by, bz, dx, dy, dz)
@@ -66,9 +65,9 @@ def criterion(outputs, labels, dx, dy, dz, args):
 
 #---------------------------------------------------------------------------------------
 def get_dataloaders(args):
-    if args.data["dataset_name"] == "Hnorm_Unit_Aug":
-        train_dataset = ISEEDataset_Multiple_Hnorm_Unit_Aug(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
-        test_dataset = ISEEDataset_Hnorm_Unit_Aug(args.data['test_path'], args.data["b_norm"])
+    if args.data["dataset_name"] == "Hnorm_Unit_Aug_Potential":
+        train_dataset = ISEEDataset_Multiple_Hnorm_Unit_Aug_Potential(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
+        test_dataset = ISEEDataset_Hnorm_Unit_Aug_Potential(args.data['test_path'], args.data["b_norm"])
     else:
         raise NotImplementedError
     
@@ -137,7 +136,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
         total_train_loss_mse = 0
         total_train_loss_ccc = 0
         total_train_loss_bc = 0
-        total_train_loss_ff = 0
+        total_train_loss_cur = 0
         total_train_loss_div = 0
 
         with tqdm(train_dataloader, desc='Training', ncols=140) as tqdm_loader_train:
@@ -151,7 +150,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
                 loss = args.training['w_mse']*loss_dict['mse'] \
                      + args.training['w_ccc']*loss_dict['ccc'] \
                      + args.training['w_bc']*loss_dict['bc'] \
-                     + args.training['w_ff']*loss_dict['ff'] \
+                     + args.training['w_cur']*loss_dict['cur'] \
                      + args.training['w_div']*loss_dict['div']
 
                 optimizer.zero_grad()
@@ -165,14 +164,14 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
                 total_train_loss_mse += loss_dict['mse'].item()
                 total_train_loss_ccc += loss_dict['ccc'].item()
                 total_train_loss_bc += loss_dict['bc'].item()
-                total_train_loss_ff += loss_dict['ff'].item()
+                total_train_loss_cur += loss_dict['cur'].item()
                 total_train_loss_div += loss_dict['div'].item()
 
                 writer.add_scalar('step_train/loss', loss.item(), global_step)
                 writer.add_scalar('step_train/loss_mse', loss_dict['mse'].item(), global_step)
                 writer.add_scalar('step_train/loss_ccc', loss_dict['ccc'].item(), global_step)
                 writer.add_scalar('step_train/loss_bc', loss_dict['bc'].item(), global_step)
-                writer.add_scalar('step_train/loss_ff', loss_dict['ff'].item(), global_step)
+                writer.add_scalar('step_train/loss_cur', loss_dict['cur'].item(), global_step)
                 writer.add_scalar('step_train/loss_div', loss_dict['div'].item(), global_step)
 
                 writer.add_scalar('epoch', epoch, global_step)
@@ -185,14 +184,14 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
         total_train_loss_mse /= len(train_dataloader)
         total_train_loss_ccc /= len(train_dataloader)
         total_train_loss_bc /= len(train_dataloader)
-        total_train_loss_ff /= len(train_dataloader)
+        total_train_loss_cur /= len(train_dataloader)
         total_train_loss_div /= len(train_dataloader)
 
         writer.add_scalar('train/loss', total_train_loss, epoch)
         writer.add_scalar('train/loss_mse', total_train_loss_mse, epoch)
         writer.add_scalar('train/loss_ccc', total_train_loss_ccc, epoch)
         writer.add_scalar('train/loss_bc', total_train_loss_bc, epoch)
-        writer.add_scalar('train/loss_ff', total_train_loss_ff, epoch)
+        writer.add_scalar('train/loss_cur', total_train_loss_cur, epoch)
         writer.add_scalar('train/loss_div', total_train_loss_div, epoch)
         
         global_step_tmp = global_step
@@ -223,20 +222,15 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
 
 
 #---------------------------------------------------------------------------------------
-def eval_plots(b_pred, b_true, b_pot, func, name):
+def eval_plots(b_pred, b_true, func, name):
     heights = np.arange(b_pred.shape[2])
 
     plots_b = []
     for i in range(b_pred.shape[-2]):
         plots_b.append(func(b_pred[:, :, i, :], b_true[:, :, i, :]))
 
-    plots_B_pot = []
-    for i in range(b_pot.shape[-2]):
-        plots_B_pot.append(func(b_pot[:, :, i, :], b_true[:, :, i, :]))
-
     fig = plt.figure(figsize=(6, 8))
     plt.plot(plots_b, heights, color='red', label='PINO')
-    plt.plot(plots_B_pot, heights, color='black', label='Potential')
     plt.legend()
     plt.xlabel(name)
     plt.ylabel('height [pixel]')
@@ -283,14 +277,11 @@ def val_plot(model, test_dataloader, epoch, args, writer):
         plt.close()
         
         #-----------------------------------------------------------
-        b_pot = batch['pot'].detach().cpu().numpy()
-        b_pot = b_pot[0, ...].transpose(1, 2, 3, 0)
-    
-        fig = eval_plots(b_pred, b_true, b_pot, eval.l2_error, 'rel_l2_err')
+        fig = eval_plots(b_pred, b_true, eval.l2_error, 'rel_l2_err')
         writer.add_figure(f'plot/rel_l2_err', fig, epoch)
         plt.close()
 
-        fig = eval_plots(b_pred, b_true, b_pot, eval.eps, 'eps')
+        fig = eval_plots(b_pred, b_true, eval.eps, 'eps')
         writer.add_figure(f'plot/eps', fig, epoch)
         plt.close()
 
@@ -306,7 +297,7 @@ def val(model, test_dataloader, epoch, args, writer):
         total_val_loss_mse = 0.0
         total_val_loss_ccc = 0.0
         total_val_loss_bc = 0.0
-        total_val_loss_ff = 0.0
+        total_val_loss_cur = 0.0
         total_val_loss_div = 0.0
 
         for i_batch, sample_batched in enumerate(tqdm(test_dataloader, position=1, desc='Validation', leave=False, ncols=70)):
@@ -318,7 +309,7 @@ def val(model, test_dataloader, epoch, args, writer):
             val_loss = args.training['w_mse']*val_loss_dict['mse'] \
                      + args.training['w_ccc']*val_loss_dict['ccc'] \
                      + args.training['w_bc']*val_loss_dict['bc'] \
-                     + args.training['w_ff']*val_loss_dict['ff'] \
+                     + args.training['w_cur']*val_loss_dict['cur'] \
                      + args.training['w_div']*val_loss_dict['div'] \
                      + args.training.get('w_energy', 0)*val_loss_dict['energy']
 
@@ -326,21 +317,21 @@ def val(model, test_dataloader, epoch, args, writer):
             total_val_loss_mse += val_loss_dict['mse'].item()
             total_val_loss_ccc += val_loss_dict['ccc'].item()
             total_val_loss_bc += val_loss_dict['bc'].item()
-            total_val_loss_ff += val_loss_dict['ff'].item()
+            total_val_loss_cur += val_loss_dict['cur'].item()
             total_val_loss_div += val_loss_dict['div'].item()
         
         total_val_loss /= len(test_dataloader)
         total_val_loss_mse /= len(test_dataloader)
         total_val_loss_ccc /= len(test_dataloader)
         total_val_loss_bc /= len(test_dataloader)
-        total_val_loss_ff /= len(test_dataloader)
+        total_val_loss_cur /= len(test_dataloader)
         total_val_loss_div /= len(test_dataloader)
 
         writer.add_scalar('val/loss', total_val_loss, epoch)
         writer.add_scalar('val/loss_mse', total_val_loss_mse, epoch)
         writer.add_scalar('val/loss_ccc', total_val_loss_ccc, epoch)
         writer.add_scalar('val/loss_bc', total_val_loss_bc, epoch)
-        writer.add_scalar('val/loss_ff', total_val_loss_ff, epoch)
+        writer.add_scalar('val/loss_cur', total_val_loss_cur, epoch)
         writer.add_scalar('val/loss_div', total_val_loss_div, epoch)
 
         return total_val_loss
