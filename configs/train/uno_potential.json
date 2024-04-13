@@ -47,8 +47,9 @@
     },
 
     "training": {
-        "learning_late": 1e-5,
+        "learning_late": 5e-4,
         "n_epochs": 100,
+        "num_accmulation_steps": 4,
         "save_epoch_every": 1,
         "w_mse": 1.0,
         "w_ccc": 0.01,

@@ -154,9 +154,11 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
                      + args.training['w_ff']*loss_dict['ff'] \
                      + args.training['w_div']*loss_dict['div']
 
-                optimizer.zero_grad()
                 loss.backward()
-                optimizer.step()
+
+                if ((i_batch + 1) % args.training["num_accmulation_steps"] == 0) or (i_batch + 1 == len(train_dataloader)):
+                    optimizer.step()
+                    optimizer.zero_grad()
 
                 global_step = global_step_tmp + epoch + i_batch
                 tqdm_loader_train.set_postfix(step=global_step)

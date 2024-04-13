@@ -1,5 +1,5 @@
 {
-    "base_path": "/home/mgjeon/space/workspace/base_re/uno",
+    "base_path": "/home/mgjeon/space/workspace/base_re/uno2",
 
     "model": {
         "model_name": "UNO",
@@ -29,10 +29,10 @@
                              64,
                              32],
         "uno_scalings": [[1.0,1.0,1.0],
-                         [0.5,0.5,2.0],
+                         [0.5,0.5,1.0],
                          [1.0,1.0,1.0],
                          [1.0,1.0,1.0],
-                         [2.0,2.0,0.5],
+                         [2.0,2.0,1.0],
                          [1.0,1.0,1.0]]
     },
 
@@ -47,9 +47,8 @@
     },
 
     "training": {
-        "learning_late": 5e-4,
+        "learning_late": 1e-5,
         "n_epochs": 100,
-        "num_accmulation_steps": 4,
         "save_epoch_every": 1,
         "w_mse": 1.0,
         "w_ccc": 0.01,
