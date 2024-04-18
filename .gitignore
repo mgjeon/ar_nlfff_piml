@@ -4,3 +4,7 @@
 **/.ipynb_checkpoints/
 notebook_paper/download
 notebook_paper/load_input
+**/nf2_pinn/*.npy
+**/nf2_pinn/*.pt
+**/test_model/**/*.pt
+**/test_model/**/*.dat
