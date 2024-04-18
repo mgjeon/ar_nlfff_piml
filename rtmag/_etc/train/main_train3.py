@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from neuralop.models import UNO
 
-from rtmag.train.training import train, get_dataloaders
+from rtmag._etc.training3 import train, get_dataloaders
 
 
 #-----------------------------------------------------------------------------------------
@@ -75,8 +75,6 @@ if torch.cuda.device_count() > 1:
 
 optimizer = Adam(model.parameters(), lr=args.training['learning_late'])
 
-
-
 CHECKPOINT_PATH = os.path.join(args.base_path, "last.pt")
 
 if os.path.exists(CHECKPOINT_PATH):   
@@ -89,13 +87,4 @@ else:
 
 train_dataloader, test_dataloader = get_dataloaders(args)
 
-if args.training.get("end_learning_rate") is not None:
-    print("scheduler")
-    lr_start = args.training['learning_late']
-    lr_end = args.training['end_learning_rate']
-    lr_decay = args.training['decay_epoch']
-    lr_gamma = (lr_end / lr_start) ** (1 / lr_decay) 
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_gamma)
-    train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPOINT_PATH, args, writer, scheduler)
-else:
-    train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPOINT_PATH, args, writer)
+train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPOINT_PATH, args, writer)

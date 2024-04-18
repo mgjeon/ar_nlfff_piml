@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 from torchmetrics.regression import ConcordanceCorrCoef
 
-from rtmag.dataset.dataset_hnorm_unit_aug import ISEEDataset_Multiple_Hnorm_Unit_Aug, ISEEDataset_Hnorm_Unit_Aug
+from rtmag.dataset.dataset_unit import ISEEDataset_Multiple_Unit, ISEEDataset_Unit
 
 from rtmag.train.diff_torch_batch import curl, divergence
 from rtmag.test.eval_plot import plot_sample
@@ -41,12 +41,6 @@ def criterion(outputs, labels, dx, dy, dz, args):
     # bottom (z=0)
     loss['bc'] = torch.mean(torch.square(b[:, :, :, 0, :] - B[:, :, :, 0, :]))
 
-    # unnormalization
-    divisor = (1 / np.arange(1, b.shape[2] + 1)).reshape(1, 1, -1, 1).astype(np.float32)
-    divisor = torch.from_numpy(divisor).to(device)
-    b = b * divisor
-    B = B * divisor
-
     # force-free loss
     bx, by, bz = b[..., 0], b[..., 1], b[..., 2]
     jx, jy, jz = curl(bx, by, bz, dx, dy, dz)
@@ -66,9 +60,9 @@ def criterion(outputs, labels, dx, dy, dz, args):
 
 #---------------------------------------------------------------------------------------
 def get_dataloaders(args):
-    if args.data["dataset_name"] == "Hnorm_Unit_Aug":
-        train_dataset = ISEEDataset_Multiple_Hnorm_Unit_Aug(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
-        test_dataset = ISEEDataset_Hnorm_Unit_Aug(args.data['test_path'], args.data["b_norm"])
+    if args.data["dataset_name"] == "Unit":
+        train_dataset = ISEEDataset_Multiple_Unit(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
+        test_dataset = ISEEDataset_Unit(args.data['test_path'], args.data["b_norm"])
     else:
         raise NotImplementedError
     
@@ -112,7 +106,8 @@ def shared_step(model, sample_batched, args):
 
 
 #---------------------------------------------------------------------------------------
-def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPOINT_PATH, args, writer, scheduler=None):
+def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPOINT_PATH, args, writer):
+    print("training3")
     model = model.to(device)
     for state in optimizer.state.values():
         for k, v in state.items():
@@ -204,16 +199,6 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
                     'optimizer_state_dict': optimizer.state_dict()}, 
                     CHECKPOINT_PATH)
         
-        if scheduler is not None:
-            writer.add_scalar('lr', scheduler.get_last_lr()[0], epoch)
-
-            if scheduler.get_last_lr()[0] > args.training['end_learning_rate']:
-                scheduler.step()
-            else:
-                print("Learning rate is already at the minimum value")
-                print("Learning rate: ", scheduler.get_last_lr()[0])
-                print("Epoch:", epoch)
-
         if epoch % args.training['save_epoch_every'] == 0:
             torch.save({'epoch': epoch, 'global_step': global_step,
                         'model_state_dict': model.state_dict()}, os.path.join(base_path, f"model_{epoch}.pt"))
@@ -284,10 +269,9 @@ def val_plot(model, test_dataloader, epoch, args, writer):
         b_true = batch['label'].detach().cpu().numpy()
         b_true = b_true[0, ...].transpose(1, 2, 3, 0)
 
-        # unnormalization
-        divi = (b_norm / np.arange(1, b_pred.shape[2] + 1)).reshape(1, 1, -1, 1).astype(np.float32)
-        b_pred = b_pred * divi
-        b_true = b_true * divi
+        # unnormalize
+        b_pred = b_pred * b_norm
+        b_true = b_true * b_norm
 
         fig1, fig2 = plot_sample(b_pred, b_true, ret=True, v_mm=b_norm/2)
         writer.add_figure('plot/pred', fig1, epoch)

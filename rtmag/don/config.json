@@ -1,0 +1,38 @@
+{
+  "base_path":"/home/mgjeon/space/workspace/base_don/don",
+
+  "model": {
+    "name": "DeepONet",
+    "trunk_in_dim": 3,
+    "out_dim": 3,
+    "latent_dim": 8192,
+    "hidden_dim": 256,
+    "num_layers": 4
+  },
+
+  "dataset": {
+    "dataset_path": "/mnt/f/isee_dataset",
+    "name": "DeepONetDatasetCNNlabeldata",
+    "test_noaa": ["11158", "12673"],
+    "cube_shape": [512, 256, 256],
+    "b_norm": 2500,
+    "spatial_norm": 256,
+    "bottom_batch_coords": 1e4,
+    "data_batch_coords": 1e4,
+    "random_batch_coords": 1e4
+  },
+
+  "training": {
+    "batch_size": 1,
+    "num_workers": 4,
+    "num_samples": 2e5,
+    "save_every": 1000,
+    "val_every": 5000,
+    "lr": 1e-5,
+    "lambda_b": 10,
+    "lambda_mse": 1,
+    "lambda_ccc": 0.01,
+    "lambda_div": 1,
+    "lambda_ff": 1
+  }
+}

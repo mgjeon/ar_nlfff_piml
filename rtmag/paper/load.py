@@ -14,16 +14,16 @@ def load_input_label(meta_path):
 
 
 class MyModel:
-    def __init__(self, meta_path, epoch=None, device=None, clip=None):
+    def __init__(self, meta_path, epoch=None, device=None, clip=None, checkpo=None):
         self.meta_path = meta_path
         if device is None:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.device = device
         self.epoch = epoch
-        self.model, self.args, self.checkpoint = self.load_model()
+        self.model, self.args, self.checkpoint = self.load_model(checkpo)
         self.clip = clip
 
-    def load_model(self):
+    def load_model(self, checkpo=None):
         device = self.device
         meta_path = Path(self.meta_path)
         # if self.epoch is None:
@@ -43,25 +43,42 @@ class MyModel:
         for key, value in info.items():
                 args.__dict__[key] = value
 
+        if args.model.get("factorization") is not None:
+            model = UNO(
+                    hidden_channels = args.model["hidden_channels"],
+                    in_channels = args.model["in_channels"],
+                    out_channels = args.model["out_channels"],
+                    lifting_channels = args.model["lifting_channels"],
+                    projection_channels = args.model["projection_channels"],
+                    n_layers = args.model["n_layers"],
 
-        model = UNO(
-                hidden_channels = args.model["hidden_channels"],
-                in_channels = args.model["in_channels"],
-                out_channels = args.model["out_channels"],
-                lifting_channels = args.model["lifting_channels"],
-                projection_channels = args.model["projection_channels"],
-                n_layers = args.model["n_layers"],
+                    factorization = args.model["factorization"],
+                    implementation = args.model["implementation"],
+                    rank = args.model["rank"],
 
-                factorization = args.model["factorization"],
-                implementation = args.model["implementation"],
-                rank = args.model["rank"],
+                    uno_n_modes = args.model["uno_n_modes"], 
+                    uno_out_channels = args.model["uno_out_channels"],
+                    uno_scalings = args.model["uno_scalings"],
+                ).to(device)
+        else:
+            print("Model is not factorized")
+            model = UNO(
+                    hidden_channels = args.model["hidden_channels"],
+                    in_channels = args.model["in_channels"],
+                    out_channels = args.model["out_channels"],
+                    lifting_channels = args.model["lifting_channels"],
+                    projection_channels = args.model["projection_channels"],
+                    n_layers = args.model["n_layers"],
 
-                uno_n_modes = args.model["uno_n_modes"], 
-                uno_out_channels = args.model["uno_out_channels"],
-                uno_scalings = args.model["uno_scalings"],
-            ).to(device)
+                    uno_n_modes = args.model["uno_n_modes"], 
+                    uno_out_channels = args.model["uno_out_channels"],
+                    uno_scalings = args.model["uno_scalings"],
+                ).to(device)
 
-        model.load_state_dict(checkpoint['model_state_dict'])
+        if checkpo is None:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            model.load_state_dict(torch.load(checkpo, map_location=device))
 
         print(f"Model loaded from epoch {self.epoch}")
 
@@ -151,6 +168,8 @@ class MyModel:
             loss_div = torch.mean(torch.square(div_b))
                 
             loss = w_reg*loss_mse + w_bc*loss_bc + w_ff*loss_ff + w_div*loss_div
+
+            print(f"i = {i}, loss = {loss.item()}")
 
             optimizer = torch.optim.Adam(model.parameters(), lr=lr)
             optimizer.zero_grad()
