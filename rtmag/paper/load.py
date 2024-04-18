@@ -135,7 +135,6 @@ class MyModel:
         dz = torch.from_numpy(np.array([dz]).astype(np.float32)).reshape(-1, 1).to(device)
 
         for i in range(n_epoch):
-            print(i)
             model_output = model(model_input)
 
             # [batch_size, 256, 256, 512, 3]
