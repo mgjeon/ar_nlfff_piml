@@ -8,3 +8,10 @@ notebook_paper/load_input
 **/nf2_pinn/*.pt
 **/test_model/**/*.pt
 **/test_model/**/*.dat
+notebook_test/*.nc
+notebook_test/*.npy
+notebook_test/*.npz
+notebook_test/*.unf
+notebook_test/*.pt
+rtmag/paper/fastfl
+rtmag/paper/fastflh
