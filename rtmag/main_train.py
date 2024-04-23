@@ -76,18 +76,27 @@ if torch.cuda.device_count() > 1:
 optimizer = Adam(model.parameters(), lr=args.training['learning_late'])
 
 
-
-CHECKPOINT_PATH = os.path.join(args.base_path, "last.pt")
-
-if os.path.exists(CHECKPOINT_PATH):   
+try:
+    CHECKPOINT_PATH = args.meta_path
     checkpoint = torch.load(CHECKPOINT_PATH)
     model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     ck_epoch = checkpoint['epoch'] + 1
-else:
-    ck_epoch = 0
 
-train_dataloader, test_dataloader = get_dataloaders(args)
+    print(f"Loaded checkpoint from {CHECKPOINT_PATH}")
+    print(f"Starting from epoch {ck_epoch}")
+
+except:
+    CHECKPOINT_PATH = os.path.join(args.base_path, "last.pt")
+
+    if os.path.exists(CHECKPOINT_PATH):   
+        checkpoint = torch.load(CHECKPOINT_PATH)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        ck_epoch = checkpoint['epoch'] + 1
+    else:
+        ck_epoch = 0
+
+train_dataloader, val_dataloader = get_dataloaders(args)
 
 if args.training.get("end_learning_rate") is not None:
     print("scheduler")
@@ -96,6 +105,6 @@ if args.training.get("end_learning_rate") is not None:
     lr_decay = args.training['decay_epoch']
     lr_gamma = (lr_end / lr_start) ** (1 / lr_decay) 
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_gamma)
-    train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPOINT_PATH, args, writer, scheduler)
+    train(model, optimizer, train_dataloader, val_dataloader, ck_epoch, CHECKPOINT_PATH, args, writer, scheduler)
 else:
-    train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPOINT_PATH, args, writer)
+    train(model, optimizer, train_dataloader, val_dataloader, ck_epoch, CHECKPOINT_PATH, args, writer)

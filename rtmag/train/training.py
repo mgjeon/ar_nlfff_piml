@@ -32,7 +32,7 @@ def criterion(outputs, labels, dx, dy, dz, args):
 
     # ccc loss
     ccc = ConcordanceCorrCoef().to(device)
-    loss['ccc'] = torch.abs(1.0 - ccc(opts, labs))
+    loss['ccc'] = torch.square(1.0 - ccc(opts, labs))
 
     # [b, z, y, x, 3] -> [b, x, y, z, 3]
     b = torch.permute(outputs, (0, 3, 2, 1, 4))
@@ -69,19 +69,19 @@ def criterion(outputs, labels, dx, dy, dz, args):
 def get_dataloaders(args):
     if args.data["dataset_name"] == "Hnorm_Unit_Aug":
         train_dataset = ISEEDataset_Multiple_Hnorm_Unit_Aug(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
-        test_dataset = ISEEDataset_Hnorm_Unit_Aug(args.data['test_path'], args.data["b_norm"])
+        val_dataset = ISEEDataset_Hnorm_Unit_Aug(args.data['val_path'], args.data["b_norm"])
     elif args.data["dataset_name"] == "Hnorm_Unit":
         train_dataset = ISEEDataset_Multiple_Hnorm_Unit(args.data['dataset_path'], args.data["b_norm"], test_noaa=args.data['test_noaa'])
-        test_dataset = ISEEDataset_Hnorm_Unit(args.data['test_path'], args.data["b_norm"])
+        val_dataset = ISEEDataset_Hnorm_Unit(args.data['val_path'], args.data["b_norm"])
     else:
         raise NotImplementedError
     
     train_dataloder = DataLoader(train_dataset, batch_size=args.data['batch_size'], shuffle=True, 
                                  num_workers=args.data["num_workers"], pin_memory=True, drop_last=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False, 
+    val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False, 
                                  num_workers=args.data["num_workers"], pin_memory=True)
 
-    return train_dataloder, test_dataloader
+    return train_dataloder, val_dataloader
 
 
 #---------------------------------------------------------------------------------------
@@ -116,7 +116,7 @@ def shared_step(model, sample_batched, args):
 
 
 #---------------------------------------------------------------------------------------
-def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPOINT_PATH, args, writer, scheduler=None):
+def train(model, optimizer, train_dataloader, val_dataloader, ck_epoch, CHECKPOINT_PATH, args, writer, scheduler=None):
     model = model.to(device)
     for state in optimizer.state.values():
         for k, v in state.items():
@@ -125,6 +125,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
 
     base_path = args.base_path
     n_epochs = args.training['n_epochs']
+
+    val_does_not_improve = 0
     
     global_step_tmp = len(train_dataloader) * ck_epoch
     validation_loss = np.inf
@@ -133,7 +135,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
         if epoch == 0:
             with torch.no_grad():
                 model = model.eval()
-                val_plot(model, test_dataloader, -1, args, writer)
+                val_plot(model, val_dataloader, -1, args, writer)
 
         # Training
         model = model.train()
@@ -218,6 +220,9 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
                 print("Learning rate: ", scheduler.get_last_lr()[0])
                 print("Epoch:", epoch)
 
+        else:
+            writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
+
         if epoch % args.training['save_epoch_every'] == 0:
             torch.save({'epoch': epoch, 'global_step': global_step,
                         'model_state_dict': model.state_dict()}, os.path.join(base_path, f"model_{epoch}.pt"))
@@ -225,17 +230,24 @@ def train(model, optimizer, train_dataloader, test_dataloader, ck_epoch, CHECKPO
         # Validation
         with torch.no_grad():
             model = model.eval()
-            val_plot(model, test_dataloader, epoch, args, writer)
-            total_val_loss = val(model, test_dataloader, epoch, args, writer)
+            val_plot(model, val_dataloader, epoch, args, writer)
+            total_val_loss = val(model, val_dataloader, epoch, args, writer)
 
         if os.path.exists(os.path.join(base_path, "best_model.pt")):
             checkpoint = torch.load(os.path.join(base_path, "best_model.pt"))
             validation_loss = checkpoint['validation_loss']
 
         if total_val_loss < validation_loss:
+            val_does_not_improve = 0
             validation_loss = total_val_loss
             torch.save({'epoch': epoch, 'global_step': global_step, 'validation_loss': validation_loss,
                         'model_state_dict': model.state_dict()}, os.path.join(base_path, "best_model.pt"))
+        else:
+            val_does_not_improve += 1
+
+        if val_does_not_improve >= args.training['val_not_improve_epoch']:
+            for g in optimizer.param_groups:
+                g['lr'] *= 0.5
 
 
 #---------------------------------------------------------------------------------------
@@ -263,9 +275,9 @@ def eval_plots(b_pred, b_true, b_pot, func, name):
     return fig
 
 #---------------------------------------------------------------------------------------
-def val_plot(model, test_dataloader, epoch, args, writer):
+def val_plot(model, val_dataloader, epoch, args, writer):
     with torch.no_grad():
-        batch = next(iter(test_dataloader))
+        batch = next(iter(val_dataloader))
 
         if args.data["b_norm"]:
             b_norm = args.data["b_norm"]
@@ -315,7 +327,7 @@ def val_plot(model, test_dataloader, epoch, args, writer):
 
 
 #---------------------------------------------------------------------------------------
-def val(model, test_dataloader, epoch, args, writer):
+def val(model, val_dataloader, epoch, args, writer):
     with torch.no_grad():
 
         total_val_loss = 0.0
@@ -325,7 +337,7 @@ def val(model, test_dataloader, epoch, args, writer):
         total_val_loss_ff = 0.0
         total_val_loss_div = 0.0
 
-        for i_batch, sample_batched in enumerate(tqdm(test_dataloader, position=1, desc='Validation', leave=False, ncols=70)):
+        for i_batch, sample_batched in enumerate(tqdm(val_dataloader, position=1, desc='Validation', leave=False, ncols=70)):
             gc.collect()
             torch.cuda.empty_cache()
             
@@ -344,12 +356,12 @@ def val(model, test_dataloader, epoch, args, writer):
             total_val_loss_ff += val_loss_dict['ff'].item()
             total_val_loss_div += val_loss_dict['div'].item()
         
-        total_val_loss /= len(test_dataloader)
-        total_val_loss_mse /= len(test_dataloader)
-        total_val_loss_ccc /= len(test_dataloader)
-        total_val_loss_bc /= len(test_dataloader)
-        total_val_loss_ff /= len(test_dataloader)
-        total_val_loss_div /= len(test_dataloader)
+        total_val_loss /= len(val_dataloader)
+        total_val_loss_mse /= len(val_dataloader)
+        total_val_loss_ccc /= len(val_dataloader)
+        total_val_loss_bc /= len(val_dataloader)
+        total_val_loss_ff /= len(val_dataloader)
+        total_val_loss_div /= len(val_dataloader)
 
         writer.add_scalar('val/loss', total_val_loss, epoch)
         writer.add_scalar('val/loss_mse', total_val_loss_mse, epoch)
