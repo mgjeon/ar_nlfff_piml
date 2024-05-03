@@ -1,5 +1,5 @@
 {
-    "base_path": "/home/mgjeon/space/workspace/base_restart/uno_pi_cc_hnorm_unit_aug",
+    "base_path": "/home/mgjeon/space/workspace/base_reduce/uno_lr_reduce_100",
 
     "model": {
         "model_name": "UNO",
