@@ -15,3 +15,6 @@ notebook_test/*.unf
 notebook_test/*.pt
 rtmag/paper/fastfl
 rtmag/paper/fastflh
+*.nc
+*.unf 
+*.vtk
