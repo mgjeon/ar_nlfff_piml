@@ -146,6 +146,7 @@ CHECKPOINT_PATH = base_path / "last.pt"
 if os.path.exists(CHECKPOINT_PATH):   
     checkpoint = torch.load(CHECKPOINT_PATH)
     model.load_state_dict(checkpoint['model_state_dict'])
+    ck_idx = checkpoint['idx'] + 1
 else:
     ck_idx = 0
 
@@ -186,11 +187,13 @@ for id, batch in enumerate(tqdm_loader):
     loss_bc = (b_bottom_true - b_bottom).pow(2).mean()
     loss_mse = (b_data_true - b_data).pow(2).mean()
     ccc = ConcordanceCorrCoef().to(device)
-    loss_ccc = torch.abs(1.0 - ccc(b_data_true.flatten(), b_data.flatten()))
+    loss_ccc_bottom = torch.abs(1.0 - ccc(b_bottom_true.flatten(), b_bottom.flatten()))
+    loss_ccc_data = torch.abs(1.0 - ccc(b_data_true.flatten(), b_data.flatten()))
+    loss_ccc = 0.5*(loss_ccc_bottom + loss_ccc_data)
 
     loss_div, loss_ff = calculate_pde_loss(b, coords)
 
-    loss = args.training["lambda_b"] * loss_bc + \
+    loss = args.training["lambda_bc"] * loss_bc + \
            args.training["lambda_mse"] * loss_mse + \
            args.training["lambda_ccc"] * loss_ccc + \
            args.training["lambda_div"] * loss_div + \

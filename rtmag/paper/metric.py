@@ -53,7 +53,7 @@ def evaluate_energy(b, B, Bp, dV, isprint=False):
 
 #--------------------------------------------------
 
-@njit(parallel=True, cache=True)
+@njit(parallel=True, cache=False)
 def current_density(b, dx, dy, dz):
     """
     Input:

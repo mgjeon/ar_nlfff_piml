@@ -1,0 +1,60 @@
+{
+    "base_path": "/home/mgjeon/space/workspace/base_restart/uno_pi_cc_hnorm_unit_aug",
+
+    "model": {
+        "model_name": "UNO",
+        
+        "in_channels": 1,
+        "out_channels": 256,
+        
+        "hidden_channels": 32,
+        "lifting_channels": 256,
+        "projection_channels": 256,
+        "n_layers": 7,
+
+        "uno_n_modes": [[ 8, 8, 8],
+                        [ 4, 4, 4],
+                        [ 4, 4, 4],
+                        [ 4, 4, 4],
+                        [ 4, 4, 4],
+                        [ 4, 4, 4],
+                        [ 8, 8, 8]],
+        "uno_out_channels": [64,
+                             64,
+                             64,
+                             64,
+                             64,
+                             64,
+                             32],
+        "uno_scalings": [[1.0,1.0,1.0],
+                         [0.5,0.5,2.0],
+                         [0.5,0.5,2.0],
+                         [1.0,1.0,1.0],
+                         [2.0,2.0,0.5],
+                         [2.0,2.0,0.5],
+                         [1.0,1.0,1.0]]
+    },
+
+    "data": {
+        "dataset_name": "Hnorm_Unit_Aug",
+        "dataset_path": "/mnt/f/isee_dataset",
+        "test_noaa": ["11158", "12673", "12781", "12017"],
+        "val_path": ["/mnt/f/isee_dataset/12017", "/mnt/f/isee_dataset/12781"],
+        "b_norm": 2500,
+        "batch_size": 1,
+        "num_workers": 4
+    },
+
+    "training": {
+        "learning_late": 5e-5,
+        "val_not_improve_epoch": 5,
+        "num_accmulation_steps": 4,
+        "n_epochs": 100,
+        "save_epoch_every": 1,
+        "w_mse": 1.0,
+        "w_ccc": 0.01,
+        "w_bc": 10.0,
+        "w_ff": 100.0,
+        "w_div": 100.0
+    }
+}

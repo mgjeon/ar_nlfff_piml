@@ -6,7 +6,12 @@ from pathlib import Path
 class ISEEDataset_Hnorm_Unit_Aug(Dataset):
 
     def __init__(self, data_path, b_norm):
-        files = list(Path(data_path).glob('**/input/*.npz'))
+        if isinstance(data_path, str):
+            files = list(Path(data_path).glob('**/input/*.npz'))
+        elif isinstance(data_path, list):
+            files = []
+            for d_path in data_path:
+                files += list(Path(d_path).glob('**/input/*.npz'))
         self.files = sorted([f for f in files])
         self.b_norm = b_norm
         self.length = len(self.files)

@@ -6,7 +6,7 @@
     "trunk_in_dim": 3,
     "out_dim": 3,
     "latent_dim": 8192,
-    "hidden_dim": 256,
+    "hidden_dim": 512,
     "num_layers": 4
   },
 
@@ -17,19 +17,19 @@
     "cube_shape": [512, 256, 256],
     "b_norm": 2500,
     "spatial_norm": 256,
-    "bottom_batch_coords": 1e4,
-    "data_batch_coords": 1e4,
-    "random_batch_coords": 1e4
+    "bottom_batch_coords": 5e3,
+    "data_batch_coords": 5e3,
+    "random_batch_coords": 5e3
   },
 
   "training": {
     "batch_size": 1,
     "num_workers": 4,
-    "num_samples": 2e5,
+    "num_samples": 9e4,
     "save_every": 1000,
-    "val_every": 5000,
-    "lr": 1e-5,
-    "lambda_b": 10,
+    "val_every": 1000,
+    "lr": 5e-5,
+    "lambda_bc": 100,
     "lambda_mse": 1,
     "lambda_ccc": 0.01,
     "lambda_div": 1,
